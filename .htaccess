@@ -1,0 +1,38 @@
+# Control Minorista y Chimola en Ferozo (Apache). Mismo esquema que Compras y RRHH.
+
+# 1) Forzar HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 2) No servir los archivos internos del proyecto
+#    (la carpeta .git la crea el despliegue de Ferozo y tiene el historial completo)
+RedirectMatch 404 /\.git
+RewriteRule "^(supabase|pruebas|scripts|datos-privados|node_modules)(/|$)" - [R=404,L]
+<FilesMatch "(\.md|\.bat|\.ps1|\.mjs|\.json|\.txt|\.csv|\.xlsx|\.xls|\.pdf|\.sql|\.ts|\.gitignore|\.htpasswd.*)$">
+  Require all denied
+</FilesMatch>
+<Files "robots.txt">
+  Require all granted
+</Files>
+
+# 3) Que los buscadores no la indexen, que no se pueda embeber en otra página
+#    y que no se mande la dirección a otros sitios (los enlaces de WhatsApp e Instagram)
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+  Header set X-Frame-Options "DENY"
+  Header set Referrer-Policy "same-origin"
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>
+
+# 4) Caché del navegador: los .js y .css llevan ?v=AAAAMMDD.N en index.html, así que se guardan un mes
+#    y al subir una versión nueva (otro ?v=) se bajan solos. El index.html se revalida siempre.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "public, max-age=2592000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

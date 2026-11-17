@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<!-- Tema antes de dibujar, para que no parpadee. Predeterminado: claro; el botón pasa a oscuro y se recuerda -->
+<script>document.documentElement.dataset.tema = "claro"; try { if (localStorage.getItem("fac-tema") === "oscuro") document.documentElement.dataset.tema = "oscuro"; } catch (e) {}</script>
+<title>Facturación y despacho · Cindy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23e84e1b'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-size='20' fill='%23fff'%3EC%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css?v=20261117.1">
+<link rel="stylesheet" href="css/facturacion.css?v=20261117.1">
+<script src="js/color.js?v=20261117.1"></script>
+<script>try { ColorFondo.aplicar(ColorFondo.leer()); } catch (e) {}</script>
+</head>
+<body>
+
+<!-- ============ Falta configurar la conexión ============ -->
+<section class="pantalla" id="pantalla-config" hidden>
+  <button type="button" class="btn-tema" data-tema-boton aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>
+  <div class="tarjeta">
+    <header class="marca">
+      <span class="isotipo" aria-hidden="true">C</span>
+      <span><span class="titulo">Facturación y despacho</span><span class="sub">Cindy Mayorista</span></span>
+    </header>
+    <p><strong>Falta conectar la base de datos.</strong></p>
+    <p>Completá <code>supabaseUrl</code> y <code>supabaseKey</code> en <code>js/config.js</code> y recargá la página.</p>
+  </div>
+</section>
+
+<!-- ============ Cargando ============ -->
+<section id="pantalla-carga" aria-busy="true">
+  <span class="sr-only">Cargando…</span>
+  <div class="app esq-app" aria-hidden="true">
+    <header class="barra">
+      <div class="marca"><span class="isotipo">C</span><span><span class="titulo">Facturación y despacho</span><span class="sub">Cindy Mayorista</span></span></div>
+      <span class="esq" style="width:140px; height:30px; border-radius:999px"></span><span class="esq" style="width:34px; height:34px; border-radius:50%"></span>
+    </header>
+    <nav class="lateral"><a><span class="esq" style="width:18px; height:18px; border-radius:5px; flex:none"></span><span class="esq" style="width:60%; height:12px"></span></a><a><span class="esq" style="width:18px; height:18px; border-radius:5px; flex:none"></span><span class="esq" style="width:72%; height:12px"></span></a><a><span class="esq" style="width:18px; height:18px; border-radius:5px; flex:none"></span><span class="esq" style="width:55%; height:12px"></span></a></nav>
+    <main class="contenido">
+      <div class="vista-head"><div style="flex:1"><span class="esq" style="width:180px; height:26px"></span><span class="esq" style="width:260px; height:12px; margin-top:10px"></span></div></div>
+      <div class="kpis"><div class="kpi"><span class="esq" style="width:55%; height:10px"></span><span class="esq" style="width:38%; height:28px; margin-top:12px"></span></div><div class="kpi"><span class="esq" style="width:65%; height:10px"></span><span class="esq" style="width:38%; height:28px; margin-top:12px"></span></div><div class="kpi"><span class="esq" style="width:75%; height:10px"></span><span class="esq" style="width:38%; height:28px; margin-top:12px"></span></div></div>
+      <div class="caja"><span class="esq" style="width:100%; height:220px; border-radius:10px"></span></div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ Login ============ -->
+<section class="pantalla" id="pantalla-login" hidden>
+  <button type="button" class="btn-tema" data-tema-boton aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>
+  <form class="tarjeta" id="form-login" autocomplete="on">
+    <header class="marca">
+      <span class="isotipo" aria-hidden="true">C</span>
+      <span><span class="titulo">Facturación y despacho</span><span class="sub">Cindy Mayorista</span></span>
+    </header>
+    <div class="login-cindy" id="login-cindy" hidden>
+      <button type="button" class="btn" id="login-clerk">Entrar con cuenta Cindy</button>
+      <p class="hint">La misma cuenta del Panel Cindy y las demás apps.</p>
+      <div class="separador"><span>o con tu usuario de rótulos</span></div>
+    </div>
+    <label for="login-email">Usuario</label>
+    <input id="login-email" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+    <label for="login-password">Contraseña</label>
+    <input id="login-password" type="password" autocomplete="current-password" required>
+    <button class="btn" id="login-btn" type="submit">Ingresar</button>
+    <div class="mensaje-error" id="login-error" role="alert"></div>
+    <button type="button" class="link salir-cindy" id="salir-cindy" hidden>Salir de la cuenta Cindy</button>
+  </form>
+</section>
+
+<!-- ============ Aplicación ============ -->
+<div class="app" id="app" hidden>
+  <header class="barra">
+    <button type="button" class="btn-menu" id="btn-menu" aria-label="Abrir menú">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+    </button>
+    <div class="marca">
+      <span class="isotipo" aria-hidden="true">C</span>
+      <span><span class="titulo">Facturación y despacho</span><span class="sub">Cindy Mayorista</span></span>
+    </div>
+    <nav class="pestanas-apps" aria-label="Programas">
+      <a id="ir-rotulos" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+        Rótulos</a>
+      <a class="activa" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
+        Facturación</a>
+    </nav>
+    <button type="button" class="btn-tema" id="btn-actualizar" aria-label="Actualizar los datos" title="Actualizar los datos desde la base"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+    <button type="button" class="btn-tema" data-tema-boton aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>
+    <div class="usuario">
+      <span class="quien"><span id="usuario-nombre"></span><span class="rol" id="usuario-rol"></span><span class="via" id="usuario-via" hidden>Cuenta Cindy</span></span>
+      <button type="button" class="link" id="salir">Salir</button>
+    </div>
+  </header>
+
+  <nav class="lateral" id="lateral" aria-label="Secciones">
+    <a href="#hoy" data-vista="hoy" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+      Hoy<span class="contador" id="contador-hoy" hidden></span></a>
+    <a href="#planilla" data-vista="planilla" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+      Planilla</a>
+    <a href="#despacho" data-vista="despacho" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+      Despacho<span class="contador" id="contador-despacho" hidden></span></a>
+    <a href="#ajustes" data-vista="ajustes" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      Ajustes</a>
+  </nav>
+
+  <main class="contenido">
+    <div class="banner-prueba" id="banner-demo" role="status" hidden><p>Modo de prueba: los datos son inventados y no se guarda nada en la base.</p></div>
+
+    <!-- ======== Hoy ======== -->
+    <section id="vista-hoy" data-seccion hidden>
+      <div class="vista-head">
+        <div><h1>Hoy</h1><p class="sub" id="hoy-sub"></p></div>
+        <div class="controles">
+          <button type="button" class="btn-sec" id="hoy-copiar-resumen"></button>
+          <button type="button" class="btn-sec primario" id="hoy-nuevo" data-solo-carga hidden></button>
+        </div>
+      </div>
+      <div class="kpis" id="hoy-kpis"></div>
+      <div id="hoy-bandejas"></div>
+    </section>
+
+    <!-- ======== Planilla ======== -->
+    <section id="vista-planilla" data-seccion hidden>
+      <div class="vista-head">
+        <div><h1>Planilla</h1><p class="sub" id="pl-sub">Todos los pedidos facturados. Clic en una celda para editar; Enter guarda y baja, Tab pasa a la siguiente, Esc cancela.</p></div>
+        <div class="controles">
+          <button type="button" class="btn-sec" id="pl-exportar"></button>
+          <button type="button" class="btn-sec primario" id="pl-nuevo" data-solo-carga hidden></button>
+        </div>
+      </div>
+      <div class="caja">
+        <div class="filtros">
+          <div><label for="pl-estado">Mostrar</label><select id="pl-estado">
+            <option value="abiertos">Abiertos (sin despachar ni dar de baja)</option>
+            <option value="hoy">Cargados hoy</option>
+            <option value="todos">Todos</option>
+            <option value="facturado">Facturado</option><option value="esperando_pago">Esperando pago</option>
+            <option value="pago_informado">Pago informado</option><option value="listo">Listo para despachar</option>
+            <option value="despachado">Despachado</option><option value="baja">Baja</option>
+          </select></div>
+          <div><label for="pl-transporte">Transporte</label><select id="pl-transporte"></select></div>
+          <div><label for="pl-desde">Desde</label><input type="date" id="pl-desde"></div>
+          <div><label for="pl-hasta">Hasta</label><input type="date" id="pl-hasta"></div>
+          <div style="flex:1; min-width:200px"><label for="pl-buscar">Buscar</label><div class="buscar-wrap">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="pl-buscar" placeholder="Cliente, n° de pedido, guía, observaciones…"></div></div>
+        </div>
+        <p class="periodo-texto" id="pl-resumen"></p>
+        <div class="tabla-wrap" id="pl-wrap"><table class="tabla grilla planilla-fac" id="pl-tabla">
+          <thead><tr id="pl-cabecera"></tr></thead>
+          <tbody id="pl-cuerpo"></tbody>
+        </table></div>
+        <button type="button" class="btn-sec" id="pl-mas" hidden style="margin-top:12px"></button>
+      </div>
+    </section>
+
+    <!-- ======== Despacho ======== -->
+    <section id="vista-despacho" data-seccion hidden>
+      <div class="vista-head">
+        <div><h1>Despacho</h1><p class="sub" id="desp-sub"></p></div>
+        <div class="controles">
+          <div><label for="desp-ventana">Ventana</label><select id="desp-ventana"></select></div>
+        </div>
+      </div>
+      <div class="caja">
+        <h2>Listos para despachar</h2>
+        <p class="hint" style="margin-top:0">Pedidos con el pago confirmado. Destildá los que no salen en esta ventana.</p>
+        <div class="tabla-wrap"><table class="tabla grilla">
+          <thead><tr><th style="width:36px"><input type="checkbox" id="desp-todos" aria-label="Todos" checked></th><th>Cliente</th><th>Transporte</th><th class="num">Total</th><th>Pago confirmado</th><th>Observaciones</th><th></th></tr></thead>
+          <tbody id="desp-cuerpo"></tbody>
+        </table></div>
+        <div class="acciones-despacho">
+          <button type="button" class="btn-sec primario" id="desp-copiar"></button>
+          <button type="button" class="btn-sec" id="desp-whatsapp"></button>
+          <button type="button" class="btn-sec" id="desp-imprimir"></button>
+        </div>
+      </div>
+      <div class="caja">
+        <h2>Despachados hoy</h2>
+        <div id="desp-hoy"></div>
+      </div>
+    </section>
+
+    <!-- ======== Ajustes ======== -->
+    <section id="vista-ajustes" data-seccion hidden>
+      <div class="vista-head"><div><h1>Ajustes</h1><p class="sub">Plazos, ventanas, listas y quién usa facturación.</p></div></div>
+      <div class="caja">
+        <h2>Plazos y ventanas</h2>
+        <div class="form-grid">
+          <div><label for="aj-t2">Horas hábiles desde el T1 hasta el aviso de T2</label><input type="number" id="aj-t2" min="1" max="240"></div>
+          <div><label for="aj-t3">Horas hábiles desde el T2 hasta el aviso de baja (T3)</label><input type="number" id="aj-t3" min="1" max="240"></div>
+          <div class="full"><label>Días que no cuentan como hábiles</label><div class="pastillas" id="aj-no-habiles"></div></div>
+          <div><label for="aj-ventanas">Ventanas de despacho</label><input type="text" id="aj-ventanas" placeholder="10:00, 15:00"><p class="hint">Horas separadas por coma.</p></div>
+          <div><label for="aj-feriado">Feriados (no cuentan como hábiles)</label><div class="agregar-fila"><input type="date" id="aj-feriado"><button type="button" class="btn-sec" id="aj-feriado-agregar">Agregar</button></div>
+            <div class="feriados" id="aj-feriados"></div></div>
+        </div>
+        <div class="dlg-pie"><button type="button" class="btn-sec primario" id="aj-guardar-plazos">Guardar plazos y ventanas</button></div>
+      </div>
+      <div class="caja">
+        <h2>Listas</h2>
+        <div class="pestanas" id="aj-pestanas" role="tablist"></div>
+        <ul class="lista-edit" id="aj-lista"></ul>
+        <form class="agregar-fila" id="aj-agregar"><input type="text" id="aj-nuevo" maxlength="60"><button type="submit" class="btn-sec">Agregar</button></form>
+        <p class="hint">Los cambios se guardan solos. Las opciones no se borran: se desactivan. El número es el orden. Los transportes son los de rótulos (se cambian allá).</p>
+      </div>
+      <div class="caja">
+        <h2>Quién usa facturación</h2>
+        <p class="hint" style="margin-top:0"><strong>Facturación</strong>: carga pedidos, manda mensajes, despacha y da de baja. <strong>Administración</strong>: confirma que el pago entró. <strong>Consulta</strong>: solo mira. Los superadmin de rótulos son admin acá. Son los mismos usuarios de rótulos (y la cuenta Cindy).</p>
+        <div class="tabla-wrap"><table class="tabla grilla">
+          <thead><tr><th>Nombre</th><th>Usuario</th><th>En rótulos</th><th>Rol en facturación</th></tr></thead>
+          <tbody id="aj-usuarios"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ Diálogos ============ -->
+<dialog class="dlg ancho" id="dlg-pedido">
+  <div class="dlg-head"><h3 id="pd-titulo"></h3><button type="button" class="btn-cerrar" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <div class="dlg-body" id="pd-cuerpo"></div>
+</dialog>
+
+<dialog class="dlg" id="dlg-form">
+  <form id="form-dlg" autocomplete="off">
+    <div class="dlg-head"><h3 id="form-titulo"></h3></div>
+    <div class="dlg-body">
+      <p class="hint" id="form-texto"></p>
+      <div id="form-campos"></div>
+      <div class="mensaje-error" id="form-error" role="alert"></div>
+      <div class="dlg-pie"><button type="button" class="btn-sec" data-cerrar>Cancelar</button><button type="submit" class="btn-sec primario" id="form-ok">Aceptar</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlg-pedir">
+  <form id="form-pedir">
+    <div class="dlg-head"><h3 id="pedir-titulo"></h3></div>
+    <div class="dlg-body">
+      <p class="hint" id="pedir-texto"></p>
+      <div id="pedir-campo-wrap"><label for="pedir-campo" id="pedir-campo-label"></label><input type="text" id="pedir-campo" maxlength="200"></div>
+      <div class="dlg-pie"><button type="button" class="btn-sec" data-cerrar>Cancelar</button><button type="submit" class="btn-sec primario" id="pedir-ok">Aceptar</button></div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="js/config.js?v=20261117.1"></script>
+<script src="js/utils.js?v=20261117.1"></script>
+<script src="js/plazos.js?v=20261117.1"></script>
+<script src="js/mensajes.js?v=20261117.1"></script>
+<script src="js/deshacer.js?v=20261117.1"></script>
+<script src="js/cuenta-cindy.js?v=20261117.1"></script>
+<script src="js/api.js?v=20261117.1"></script>
+<script src="js/datos.js?v=20261117.1"></script>
+<script src="js/vistas/acceso.js?v=20261117.1"></script>
+<script src="js/vistas/pedido.js?v=20261117.1"></script>
+<script src="js/vistas/hoy.js?v=20261117.1"></script>
+<script src="js/vistas/planilla.js?v=20261117.1"></script>
+<script src="js/vistas/despacho.js?v=20261117.1"></script>
+<script src="js/vistas/ajustes.js?v=20261117.1"></script>
+<script src="js/main.js?v=20261117.1"></script>
+</body>
+</html>

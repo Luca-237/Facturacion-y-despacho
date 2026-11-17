@@ -1,0 +1,13 @@
+{
+  "name": "facturacion-y-despacho",
+  "private": true,
+  "description": "Seguimiento de pedidos facturados de Cindy Mayorista: pago, despacho, bajas y mensajes T1/T2/T3.",
+  "scripts": {
+    "test": "node --test \"pruebas/*.test.*\"",
+    "verificar": "node scripts/antes-de-desplegar.mjs",
+    "subir-version": "node scripts/antes-de-desplegar.mjs --subir-version"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.13"
+  }
+}
