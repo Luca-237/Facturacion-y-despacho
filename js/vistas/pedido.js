@@ -103,6 +103,7 @@
         <div class="full"><label for="pd-cliente">Cliente</label><input id="pd-cliente" maxlength="120" value="${esc(p.cliente)}" ${dis} required>
           <p class="hint">${p.cliente_id ? "Vinculado a un cliente de rótulos." : "Escrito a mano (no está vinculado a un cliente de rótulos)."}</p></div>
         <div><label for="pd-telefono">Teléfono (WhatsApp)</label><input id="pd-telefono" maxlength="40" value="${esc(p.telefono)}" ${dis}></div>
+        ${R.datos.misSucursales().length > 1 ? `<div><label for="pd-sucursal">Sucursal</label><select id="pd-sucursal" ${dis}>${R.datos.misSucursales().map(s => `<option value="${esc(s.clave)}" ${s.clave === p.sucursal ? "selected" : ""}>${esc(s.nombre)}</option>`).join("")}</select></div>` : ""}
         <div><label for="pd-tipo">Tipo</label><select id="pd-tipo" ${dis}>${["normal", "preventa", "muestras"].map(t => `<option value="${t}" ${t === p.tipo ? "selected" : ""}>${t[0].toUpperCase() + t.slice(1)}</option>`).join("")}</select></div>
         <div><label for="pd-transporte">Transporte</label><select id="pd-transporte" ${dis}>${opcionesSelect(R.datos.transportes(), p.transporte)}</select></div>
         <div><label for="pd-facturo">Facturó</label><select id="pd-facturo" ${dis}>${opcionesSelect(R.datos.opciones("facturo"), p.facturo)}</select></div>
@@ -141,6 +142,7 @@
         observaciones: $("pd-obs").value.trim(),
       };
       if ($("pd-despacho")) nuevo.despacho_fecha = $("pd-despacho").value || p.despacho_fecha;
+      if ($("pd-sucursal")) nuevo.sucursal = $("pd-sucursal").value;
       if ($("pd-revisar")) nuevo.revisar = $("pd-revisar").value.trim();
       if ((i1 && nuevo.importe_1 == null) || (i2 && nuevo.importe_2 == null)) return ($("pd-error").textContent = "Revisá los importes: tienen que ser números (ej. 171.416,45).");
       if (!nuevo.cliente) return ($("pd-error").textContent = "Falta el cliente.");
@@ -150,6 +152,7 @@
       if (!Object.keys(cambios).length) return toast("No hay cambios para guardar.");
       try {
         await R.datos.actualizar(p, cambios, { avisar: true });
+        if (cambios.sucursal) { $("dlg-pedido").close(); toast(`El pedido pasó a ${R.datos.nombreSucursal(cambios.sucursal)}.`); }
         R.app.refrescar();
       } catch (err) { $("pd-error").textContent = err.message; }
     });

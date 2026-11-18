@@ -65,7 +65,7 @@
     const g = agrupar(ahora);
     const v = P.proximaVentana(R.datos.ajustes(), ahora);
     const fecha = ahora.toLocaleDateString("es-AR", { timeZone: R.util.ZONA, weekday: "long", day: "numeric", month: "long" });
-    $("hoy-sub").textContent = `${fecha[0].toUpperCase() + fecha.slice(1)} · Próxima ventana de despacho: ${v ? `${v.hora} (${v.dia === "hoy" || v.dia === "mañana" ? v.dia : R.util.fmtFecha(v.dia)})` : "sin ventanas cargadas"}`;
+    $("hoy-sub").textContent = `${R.datos.nombreSucursal()} · ${fecha} · Próxima ventana de despacho: ${v ? `${v.hora} (${v.dia === "hoy" || v.dia === "mañana" ? v.dia : R.util.fmtFecha(v.dia)})` : "sin ventanas cargadas"}`;
 
     // Indicadores (tocar uno lleva a su bandeja)
     const kpi = (k, etiqueta, n, detalle, destacado) =>
@@ -104,7 +104,7 @@
     const g = agrupar(ahora);
     const v = P.proximaVentana(R.datos.ajustes(), ahora);
     const fecha = ahora.toLocaleDateString("es-AR", { timeZone: R.util.ZONA, weekday: "long", day: "numeric", month: "numeric" });
-    return M.resumenDia(g, { fecha, ventana: v ? v.hora : "" });
+    return M.resumenDia(g, { fecha, ventana: v ? v.hora : "", sucursal: R.datos.nombreSucursal() });
   }
 
   // Cantidad para el menú: lo urgente del rol

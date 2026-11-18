@@ -47,7 +47,7 @@
       </li>`).join("")}</ul>` : `<p class="vacio">Todavía no se despachó nada hoy.</p>`;
   }
 
-  function texto() { return M.listaDespacho(elegidos(), ventana()); }
+  function texto() { return M.listaDespacho(elegidos(), ventana(), R.datos.nombreSucursal()); }
 
   function imprimir() {
     const l = elegidos();
@@ -60,7 +60,7 @@
       p{color:#555;margin:0 0 16px}table{width:100%;border-collapse:collapse}th,td{border:1.5px solid #333;padding:8px 10px;text-align:left;vertical-align:middle}
       th{background:#eee;font-size:12px;text-transform:uppercase}td.cas{width:28px;text-align:center;font-size:20px}td.num{text-align:right;white-space:nowrap}
       td span{color:#666;font-size:12px}.pie{margin-top:16px;font-size:11px;color:#888}</style></head><body>
-      <h1>Cindy Mayorista · Lista de despacho</h1>
+      <h1>Cindy Mayorista · Lista de despacho · ${esc(R.datos.nombreSucursal())}</h1>
       <p>Ventana de las ${esc(ventana())} · ${new Date().toLocaleDateString("es-AR", { timeZone: R.util.ZONA })} · ${l.length} ${l.length === 1 ? "pedido" : "pedidos"}</p>
       <table><thead><tr><th></th><th>Cliente</th><th>Transporte</th><th>Total</th><th>Observaciones</th></tr></thead><tbody>${filas}</tbody></table>
       <p class="pie">Impreso desde Facturación y despacho · ${new Date().toLocaleString("es-AR", { timeZone: R.util.ZONA })}</p>

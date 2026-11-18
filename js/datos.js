@@ -15,7 +15,7 @@
     deshacer: pila,
     porId: id => D.pedidos.find(p => p.id === id),
     async cargar() {
-      D.pedidos = await R.api.pedidos.todos();
+      D.pedidos = await R.api.pedidos.todos(R.estado.sucursal);
       D.cargadoEn = Date.now();
     },
     poner(p) {
@@ -26,13 +26,26 @@
     quitar(id) { D.pedidos = D.pedidos.filter(p => p.id !== id); },
 
     // ---------- Catálogo ----------
+    // Plazos y feriados comunes + las ventanas de despacho de la sucursal elegida
     ajustes() {
       const a = (R.estado.catalogo && R.estado.catalogo.ajustes) || {};
-      return { ...P.AJUSTES_DEFECTO, ...a };
+      const s = D.sucursal();
+      return { ...P.AJUSTES_DEFECTO, ...a, ...(s && Array.isArray(s.ventanas) ? { ventanas: s.ventanas } : {}) };
     },
+    // Listas de la sucursal elegida
     opciones(tipo, { conInactivas = false } = {}) {
       return ((R.estado.catalogo && R.estado.catalogo.opciones) || [])
-        .filter(o => o.tipo === tipo && (conInactivas || o.activo)).map(o => o.valor);
+        .filter(o => o.tipo === tipo && o.sucursal === R.estado.sucursal && (conInactivas || o.activo)).map(o => o.valor);
+    },
+    // Sucursal elegida ({ clave, nombre, ventanas }) y las que puede usar quien está logueado
+    sucursal() { return ((R.estado.catalogo && R.estado.catalogo.sucursales) || []).find(s => s.clave === R.estado.sucursal) || null; },
+    misSucursales() {
+      const mis = (R.estado.catalogo && R.estado.catalogo.misSucursales) || [];
+      return ((R.estado.catalogo && R.estado.catalogo.sucursales) || []).filter(s => s.activa && mis.includes(s.clave));
+    },
+    nombreSucursal(clave = R.estado.sucursal) {
+      const s = ((R.estado.catalogo && R.estado.catalogo.sucursales) || []).find(x => x.clave === clave);
+      return s ? s.nombre : clave || "";
     },
     transportes() {
       return ((R.estado.catalogo && R.estado.catalogo.transportes) || []).filter(t => t.activo).map(t => t.nombre);
@@ -65,7 +78,9 @@
     async actualizar(p, cambios, { avisar = false } = {}) {
       const antes = {};
       Object.keys(cambios).forEach(k => { antes[k] = p[k]; });
-      const nuevo = D.poner(await R.api.pedidos.actualizar(p.id, cambios));
+      let nuevo = await R.api.pedidos.actualizar(p.id, cambios);
+      // Si se pasó a otra sucursal, deja de verse acá
+      if (nuevo.sucursal !== R.estado.sucursal) D.quitar(p.id); else D.poner(nuevo);
       const campos = Object.keys(cambios).map(k => CAMPOS[k] || k).join(", ");
       const id = pila.registrar({
         texto: `${campos} de ${nuevo.cliente}`,
@@ -144,7 +159,7 @@
     numero: "N° de pedido", tipo: "Tipo", fecha: "Fecha", cliente: "Cliente", cliente_id: "Cliente", telefono: "Teléfono",
     transporte: "Transporte", facturo: "Facturó", armador: "Armador", importe_1: "Parte 1", importe_2: "Parte 2",
     alias_pago: "Alias", faltantes: "Faltantes", observaciones: "Observaciones", guia: "Guía", nota_credito: "Nota de crédito",
-    remito_firmado: "Remito firmado", despacho_fecha: "Fecha de despacho", revisar: "Aviso para revisar",
+    remito_firmado: "Remito firmado", despacho_fecha: "Fecha de despacho", revisar: "Aviso para revisar", sucursal: "Sucursal",
     estado: "Estado", t1_en: "T1", t2_en: "T2", t3_en: "T3", pago_informado_en: "Pago informado",
     pago_confirmado_en: "Pago confirmado", pago_confirmado_por: "Confirmó", despachado_en: "Despachado",
     despachado_por: "Despachó", baja_en: "Baja", baja_por: "Dio de baja", motivo_baja: "Motivo de la baja",

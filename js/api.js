@@ -39,7 +39,7 @@
     if (/row-level security|permission denied/i.test(m)) return "No tenés permiso para hacer esto.";
     if (/JWT expired/i.test(m)) return "La sesión venció. Volvé a ingresar.";
     if (/No suitable key|wrong key type/i.test(m)) return "La base todavía no acepta la cuenta Cindy. Entrá con tu usuario.";
-    if (/fac_opciones_unico|duplicate key.*fac_opciones/i.test(m)) return "Esa opción ya existe en la lista.";
+    if (/fac_opciones_unico|duplicate key.*fac_opciones/i.test(m)) return "Esa opción ya existe en la lista de esta sucursal.";
     if (/fac_pedidos_cliente_check/i.test(m)) return "Falta el cliente.";
     if (/importe_[12]_check/i.test(m)) return "El importe no puede ser negativo.";
     if (/Could not find the function public\.fac_|relation "public\.fac_|PGRST202|PGRST205/i.test(m)) return "Falta instalar Facturación en la base (migración 20261117500000_facturacion.sql).";
@@ -95,23 +95,27 @@
 
   // ---------- Listas, ajustes y personas ----------
   async function catalogo() {
-    const [opciones, transportes, ajustes, personas] = await Promise.all([
+    const [opciones, transportes, ajustes, personas, sucursales, misSucursales] = await Promise.all([
       sb.from("fac_opciones").select("*").order("orden").order("valor").then(chequear),
       sb.from("transportes").select("id, nombre, orden, activo").order("orden").order("nombre").then(chequear),
       sb.from("fac_ajustes").select("clave, valor").then(chequear),
       sb.rpc("fac_personas").then(chequear),
+      sb.from("fac_sucursales").select("*").order("orden").then(chequear),
+      sb.rpc("fac_mis_sucursales").then(chequear),
     ]);
     return {
       opciones, transportes,
       ajustes: Object.fromEntries(ajustes.map(a => [a.clave, a.valor])),
-      personas,
+      personas, sucursales, misSucursales: misSucursales || [],
     };
   }
 
   // ---------- Pedidos ----------
   const pedidos = {
-    async todos() {
-      return (await todo(() => sb.from("fac_pedidos").select("*").order("fecha", { ascending: false }).order("id", { ascending: false }))).map(numeros);
+    // Los de una sucursal (la base igual devuelve solo los de las sucursales de cada uno)
+    async todos(sucursal) {
+      return (await todo(() => sb.from("fac_pedidos").select("*").eq("sucursal", sucursal)
+        .order("fecha", { ascending: false }).order("id", { ascending: false }))).map(numeros);
     },
     async uno(id) { return numeros(chequear(await sb.from("fac_pedidos").select("*").eq("id", id).single())); },
     async crear(datos) { return numeros(chequear(await sb.from("fac_pedidos").insert(datos).select().single())); },
@@ -141,15 +145,21 @@
     async guardarOpcion(o) {
       const datos = { valor: o.valor, orden: o.orden ?? 100, activo: o.activo ?? true };
       if (o.id) return chequear(await sb.from("fac_opciones").update(datos).eq("id", o.id).select().single());
-      return chequear(await sb.from("fac_opciones").insert({ ...datos, tipo: o.tipo }).select().single());
+      return chequear(await sb.from("fac_opciones").insert({ ...datos, tipo: o.tipo, sucursal: o.sucursal }).select().single());
+    },
+    async guardarVentanas(sucursal, ventanas) {
+      return chequear(await sb.from("fac_sucursales").update({ ventanas }).eq("clave", sucursal).select().single());
     },
     async guardarAjuste(clave, valor) {
       return chequear(await sb.from("fac_ajustes").update({ valor }).eq("clave", clave).select().single());
     },
-    // rol: "facturacion" | "administracion" | "consulta" | null (quitar el acceso)
-    async asignarRol(perfilId, rol) {
+    // rol: "facturacion" | "administracion" | "consulta" | null (quitar el acceso); sucursales: ["central", ...]
+    async asignarRol(perfilId, rol, sucursales) {
       if (!rol) { chequear(await sb.from("fac_usuarios").delete().eq("perfil_id", perfilId)); return; }
-      chequear(await sb.from("fac_usuarios").upsert({ perfil_id: perfilId, rol, activo: true }, { onConflict: "perfil_id" }));
+      chequear(await sb.from("fac_usuarios").upsert({ perfil_id: perfilId, rol, activo: true, sucursales }, { onConflict: "perfil_id" }));
+    },
+    async asignarSucursales(perfilId, sucursales) {
+      chequear(await sb.from("fac_usuarios").update({ sucursales }).eq("perfil_id", perfilId));
     },
   };
 

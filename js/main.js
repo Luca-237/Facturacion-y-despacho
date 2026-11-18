@@ -6,7 +6,7 @@
 //    admin          -> todo, más Ajustes (los superadmin de rótulos)
 // =====================================================================
 (function (R) {
-  const { $, toast } = R.util;
+  const { $, toast, pref } = R.util;
   const VISTAS = {
     hoy: { v: () => R.vistaHoy, roles: ["admin", "facturacion", "administracion", "consulta"] },
     planilla: { v: () => R.vistaPlanilla, roles: ["admin", "facturacion", "administracion", "consulta"] },
@@ -71,18 +71,66 @@
         : "Tu usuario no tiene acceso a Facturación. Pedile a un admin que te lo habilite en Ajustes.");
     }
     R.estado.perfil = perfil;
-    try {
-      R.estado.catalogo = await R.api.catalogo();
-      await R.datos.cargar();
-    } catch (e) { R.vistaAcceso.mostrar("pantalla-login"); return R.vistaAcceso.errorLogin(e.message); }
+    try { R.estado.catalogo = await R.api.catalogo(); }
+    catch (e) { R.vistaAcceso.mostrar("pantalla-login"); return R.vistaAcceso.errorLogin(e.message); }
+    const mis = R.datos.misSucursales();
+    if (!mis.length) {
+      if (!cindy) await R.api.auth.salir();
+      R.vistaAcceso.mostrarCindy();
+      R.vistaAcceso.mostrar("pantalla-login");
+      return R.vistaAcceso.errorLogin("Tu usuario no tiene ninguna sucursal asignada. Pedile a un admin que te la asigne en Ajustes.");
+    }
+    // Sucursal: la que quedó guardada en este navegador; si tiene una sola, esa; si no, se elige
+    const guardada = pref.leer("sucursal", null);
+    if (mis.some(s => s.clave === guardada)) return abrirSucursal(guardada);
+    if (mis.length === 1) return abrirSucursal(mis[0].clave);
+    elegirSucursal();
+  }
+
+  // Pantalla de la primera vez: una tarjeta por sucursal
+  function elegirSucursal() {
+    const mis = R.datos.misSucursales();
+    $("sucursal-opciones").innerHTML = mis.map(s => `<button type="button" class="opcion-sucursal" data-sucursal="${R.util.esc(s.clave)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>${R.util.esc(s.nombre)}</span></button>`).join("");
+    R.vistaAcceso.mostrar("pantalla-sucursal");
+    const primero = $("sucursal-opciones").querySelector("button");
+    if (primero) primero.focus();
+  }
+
+  // Abre la aplicación con una sucursal (al entrar, o al cambiarla desde la barra)
+  async function abrirSucursal(clave) {
+    const cambio = R.estado.sucursal && R.estado.sucursal !== clave;
+    R.estado.sucursal = clave;
+    pref.guardar("sucursal", clave);
+    if (!cambio) R.vistaAcceso.mostrar("pantalla-carga");
+    try { await R.datos.cargar(); }
+    catch (e) {
+      if (cambio) return toast(e.message, "error");
+      R.vistaAcceso.mostrar("pantalla-login");
+      return R.vistaAcceso.errorLogin(e.message);
+    }
+    R.datos.deshacer.vaciar();
     aplicarRol();
+    pintarSucursal();
     R.vistaAcceso.mostrar("app");
     ir();
     app.contadores();
+    if (cambio) toast(`Mostrando ${R.datos.nombreSucursal()}.`);
+  }
+
+  // Selector de la barra (si tiene más de una) o el nombre fijo
+  function pintarSucursal() {
+    const mis = R.datos.misSucursales();
+    $("sucursal-actual").hidden = false;
+    $("sucursal-selector").hidden = mis.length < 2;
+    $("sucursal-nombre").hidden = mis.length >= 2;
+    $("sucursal-nombre").textContent = R.datos.nombreSucursal();
+    $("sucursal-selector").innerHTML = mis.map(s => `<option value="${R.util.esc(s.clave)}"${s.clave === R.estado.sucursal ? " selected" : ""}>${R.util.esc(s.nombre)}</option>`).join("");
   }
 
   async function entrarConCindy() { if (await R.api.auth.sesion()) await entrar(); }
-  function salir() { R.estado = { perfil: null, catalogo: null }; vistaActual = null; R.datos.pedidos = []; R.datos.deshacer.vaciar(); }
+  function salir() { R.estado = { perfil: null, catalogo: null, sucursal: null }; vistaActual = null; R.datos.pedidos = []; R.datos.deshacer.vaciar(); }
 
   // Trae de nuevo pedidos y listas (botón Actualizar y cada 2 minutos, si no se está editando)
   async function actualizar({ silencioso = false } = {}) {
@@ -91,13 +139,14 @@
     try {
       const [catalogo] = await Promise.all([R.api.catalogo(), R.datos.cargar()]);
       R.estado.catalogo = catalogo;
+      pintarSucursal();
       app.refrescar();
       if (!silencioso) toast("Datos actualizados.");
     } catch (e) { if (!silencioso) toast(e.message, "error"); }
   }
 
   async function arrancar() {
-    R.estado = { perfil: null, catalogo: null };
+    R.estado = { perfil: null, catalogo: null, sucursal: null };
     R.util.iniciarTema();
     if (!R.api.configurado()) return R.vistaAcceso.mostrar("pantalla-config");
     try { R.api.iniciar(); }
@@ -125,6 +174,14 @@
     const rotulos = (local && cfg.rotulosUrlLocal) || cfg.rotulosUrl;
     if (rotulos) $("ir-rotulos").href = rotulos; else $("ir-rotulos").hidden = true;
     $("btn-actualizar").addEventListener("click", () => actualizar());
+    $("sucursal-opciones").addEventListener("click", e => {
+      const b = e.target.closest("[data-sucursal]");
+      if (b) abrirSucursal(b.dataset.sucursal);
+    });
+    $("sucursal-selector").addEventListener("change", e => {
+      if (R.vistaPlanilla.editando()) { e.target.value = R.estado.sucursal; return toast("Terminá de editar la celda antes de cambiar de sucursal.", "error"); }
+      abrirSucursal(e.target.value);
+    });
     setInterval(() => actualizar({ silencioso: true }), REFRESCO_MS);
     // Los plazos corren solos: cada minuto se recalcula "qué falta"
     setInterval(() => { if (R.estado.perfil && vistaActual === "hoy" && !document.querySelector("dialog[open]")) app.refrescar(); else app.contadores(); }, 60 * 1000);

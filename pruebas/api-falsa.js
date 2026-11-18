@@ -1,6 +1,7 @@
 // =====================================================================
 //  Modo de prueba sin base de datos (solo en la PC): index.html?demo
-//  ?demo=facturacion | administracion | consulta  (sin valor = admin)
+//  ?demo=facturacion | administracion | consulta | cordoba  (sin valor = admin;
+//  cordoba = facturación solo de Córdoba Capital)
 //  Reemplaza R.api por una copia en memoria con las mismas reglas que
 //  la base (supabase/migrations/20261117500000_facturacion.sql).
 //  Los datos son inventados y se pierden al recargar.
@@ -18,23 +19,32 @@
   const esperar = (ms = 120) => new Promise(ok => setTimeout(ok, ms));
   const copia = x => JSON.parse(JSON.stringify(x));
 
-  const PERSONAS = [
-    { id: "p-luca", nombre: "Luca", email: "luca@rotulos.cindymayorista.com.ar", rol: "admin", activo: true, rol_rotulos: "superadmin" },
-    { id: "p-greisy", nombre: "Greisy", email: "greisy@rotulos.cindymayorista.com.ar", rol: "facturacion", activo: true, rol_rotulos: "operador" },
-    { id: "p-guada", nombre: "Guada", email: "guada@rotulos.cindymayorista.com.ar", rol: "facturacion", activo: true, rol_rotulos: "operador" },
-    { id: "p-admin", nombre: "Administración", email: "administracion@rotulos.cindymayorista.com.ar", rol: "administracion", activo: true, rol_rotulos: "operador" },
-    { id: "p-facu", nombre: "Facu", email: "facu@rotulos.cindymayorista.com.ar", rol: null, activo: false, rol_rotulos: "operador" },
+  const SUCURSALES = [
+    { clave: "central", nombre: "Casa Central (Villa María)", orden: 1, activa: true, ventanas: ["10:00", "15:00"] },
+    { clave: "cordoba", nombre: "Córdoba Capital", orden: 2, activa: true, ventanas: ["11:00", "16:00"] },
   ];
-  const yo = PERSONAS.find(p => p.rol === rolDemo) || { ...PERSONAS[0], rol: rolDemo === "admin" ? "admin" : rolDemo };
+  const PERSONAS = [
+    { id: "p-luca", nombre: "Luca", email: "luca@rotulos.cindymayorista.com.ar", rol: "admin", activo: true, rol_rotulos: "superadmin", sucursales: ["central", "cordoba"] },
+    { id: "p-greisy", nombre: "Greisy", email: "greisy@rotulos.cindymayorista.com.ar", rol: "facturacion", activo: true, rol_rotulos: "operador", sucursales: ["central"] },
+    { id: "p-guada", nombre: "Guada", email: "guada@rotulos.cindymayorista.com.ar", rol: "facturacion", activo: true, rol_rotulos: "operador", sucursales: ["central", "cordoba"] },
+    { id: "p-admin", nombre: "Administración", email: "administracion@rotulos.cindymayorista.com.ar", rol: "administracion", activo: true, rol_rotulos: "operador", sucursales: ["central"] },
+    { id: "p-cba", nombre: "Facturación Córdoba", email: "cordoba@rotulos.cindymayorista.com.ar", rol: "facturacion", activo: true, rol_rotulos: "operador", sucursales: ["cordoba"] },
+    { id: "p-facu", nombre: "Facu", email: "facu@rotulos.cindymayorista.com.ar", rol: null, activo: false, rol_rotulos: "operador", sucursales: [] },
+  ];
+  const yo = rolDemo === "cordoba" ? PERSONAS.find(p => p.id === "p-cba")
+    : PERSONAS.find(p => p.rol === rolDemo) || { ...PERSONAS[0], rol: rolDemo === "admin" ? "admin" : rolDemo };
   const rol = () => yo.rol;
+  const mis = () => (rol() === "admin" ? SUCURSALES.filter(x => x.activa).map(x => x.clave) : yo.sucursales);
+  const mia = suc => mis().includes(suc);
 
   let sec = 1, secH = 1, secO = 1;
   const opciones = [];
-  [["facturo", ["Greisy", "Guada"]], ["armador", ["Jere", "Elias", "Silvana", "Cintia", "Agus", "Juli", "Fede"]], ["alias", ["cindy.mayorista.gal"]]]
-    .forEach(([tipo, vs]) => vs.forEach((valor, i) => opciones.push({ id: secO++, tipo, valor, orden: i + 1, activo: true })));
+  [["central", "facturo", ["Greisy", "Guada"]], ["central", "armador", ["Jere", "Elias", "Silvana", "Cintia", "Agus", "Juli", "Fede"]], ["central", "alias", ["cindy.mayorista.gal"]],
+    ["cordoba", "facturo", ["Facturación Córdoba"]], ["cordoba", "armador", ["Armador Córdoba"]], ["cordoba", "alias", ["cindy.mayorista.gal"]]]
+    .forEach(([sucursal, tipo, vs]) => vs.forEach((valor, i) => opciones.push({ id: secO++, sucursal, tipo, valor, orden: i + 1, activo: true })));
   const transportes = ["VIA CARGO", "CREDIFIN", "BUSPACK", "PRIVITERA", "COMISIONISTA", "COMISIONISTA-DESDE CBA", "INTERPROVINCIAL", "ALPHA",
     "TRANSPORTE PAMPERO", "INTEGRAL PACK", "TIM-CAR", "ENTREGA A DOMICILIO", "RETIRA EN LOCAL"].map((nombre, i) => ({ id: i + 1, nombre, orden: i + 1, activo: true }));
-  let ajustes = { horas_t2: 48, horas_t3: 24, dias_no_habiles: [0], feriados: [], ventanas: ["10:00", "15:00"] };
+  let ajustes = { horas_t2: 48, horas_t3: 24, dias_no_habiles: [0], feriados: [] };
   const clientes = [
     ["BAZAR LOS ALAMOS", "0353 15 412-3456", "VIA CARGO", "Villa María"], ["DISTRIBUIDORA EL SOL", "3515551234", "CREDIFIN", "Córdoba"],
     ["LIBRERIA PUNTO Y COMA", "", "BUSPACK", "Río Cuarto"], ["REGALERIA LA ESQUINA", "0358 15 466-1122", "COMISIONISTA", "Río Cuarto"],
@@ -50,7 +60,7 @@
       importe_1: null, importe_2: null, total: 0, alias_pago: "", faltantes: "", observaciones: "", estado: "facturado",
       t1_en: null, t2_en: null, t3_en: null, pago_informado_en: null, pago_confirmado_en: null, pago_confirmado_por: null,
       despacho_fecha: null, despachado_en: null, despachado_por: null, guia: "", remito_firmado: false, baja_en: null, baja_por: null,
-      nota_credito: "", motivo_baja: "", revisar: "", creado_en: new Date().toISOString(), creado_por: yo.id,
+      nota_credito: "", motivo_baja: "", revisar: "", sucursal: "central", creado_en: new Date().toISOString(), creado_por: yo.id,
       actualizado_en: new Date().toISOString(), actualizado_por: yo.id, ...datos,
     };
     p.total = (Number(p.importe_1) || 0) + (Number(p.importe_2) || 0);
@@ -79,6 +89,10 @@
     ej(i % clientes.length, { estado: "despachado", creado_en: haceHoras(100 + i * 30), t1_en: haceHoras(99 + i * 30), pago_informado_en: haceHoras(80 + i * 30), pago_confirmado_en: haceHoras(78 + i * 30), pago_confirmado_por: "p-admin", despacho_fecha: diaHace(3 + i), despachado_en: haceHoras(70 + i * 30), despachado_por: "p-greisy", fecha: diaHace(4 + i), guia: i % 4 ? "36" + (10000000 + i * 7919) : "" });
   }
   pedidos[pedidos.length - 1].revisar = "Importe ilegible en el Excel: \"$ 300,727,35\"";
+  // Córdoba Capital: unos pocos, en distintos estados
+  ej(2, { sucursal: "cordoba", facturo: "Facturación Córdoba", creado_en: haceHoras(2), creado_por: "p-cba" });
+  ej(5, { sucursal: "cordoba", facturo: "Facturación Córdoba", estado: "esperando_pago", creado_en: haceHoras(75), t1_en: haceHoras(74), fecha: diaHace(3), creado_por: "p-cba" });
+  ej(7, { sucursal: "cordoba", facturo: "Facturación Córdoba", estado: "listo", creado_en: haceHoras(30), t1_en: haceHoras(29), pago_informado_en: haceHoras(6), pago_confirmado_en: haceHoras(4), pago_confirmado_por: "p-luca", fecha: diaHace(1), creado_por: "p-cba" });
 
   const error = m => { throw new Error(m); };
   const puedeCargar = () => ["admin", "facturacion"].includes(rol());
@@ -99,7 +113,7 @@
     p.total = (Number(p.importe_1) || 0) + (Number(p.importe_2) || 0);
     return p;
   };
-  const buscar = id => pedidos.find(p => p.id === id) || error("El pedido no existe (puede que lo hayan borrado).");
+  const buscar = id => pedidos.find(p => p.id === id && mia(p.sucursal)) || error("El pedido no existe (puede que lo hayan borrado).");
 
   function accion(id, a, d = {}) {
     const p = buscar(id), antes = copia(p), ahora = new Date().toISOString();
@@ -138,7 +152,7 @@
   }
 
   const CAMPOS_EDITABLES = new Set(["numero", "tipo", "fecha", "cliente_id", "cliente", "telefono", "transporte", "facturo", "armador", "importe_1", "importe_2",
-    "alias_pago", "faltantes", "observaciones", "guia", "nota_credito", "remito_firmado", "despacho_fecha", "revisar"]);
+    "alias_pago", "faltantes", "observaciones", "guia", "nota_credito", "remito_firmado", "despacho_fecha", "revisar", "sucursal"]);
 
   R.api = {
     configurado: () => true,
@@ -151,15 +165,17 @@
     async catalogo() {
       await esperar();
       const personas = rol() === "admin" ? PERSONAS : PERSONAS.filter(p => p.rol);
-      return { opciones: copia(opciones), transportes: copia(transportes), ajustes: copia(ajustes), personas: copia(personas) };
+      return { opciones: copia(opciones), transportes: copia(transportes), ajustes: copia(ajustes), personas: copia(personas),
+        sucursales: copia(SUCURSALES), misSucursales: mis() };
     },
     pedidos: {
-      async todos() { await esperar(200); return copia(pedidos).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id); },
+      async todos(sucursal) { await esperar(200); return copia(pedidos.filter(p => p.sucursal === sucursal && mia(p.sucursal))).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id); },
       async uno(id) { await esperar(); return copia(buscar(id)); },
       async crear(datos) {
         await esperar();
         if (!puedeCargar()) error("No tenés permiso para hacer esto.");
         Object.keys(datos).forEach(k => { if (!CAMPOS_EDITABLES.has(k)) error("No tenés permiso para hacer esto."); });
+        if (!mia(datos.sucursal)) error("No tenés permiso para hacer esto.");
         const p = limpiar(nuevo(datos));
         pedidos.push(p);
         historial.push({ id: secH++, pedido_id: p.id, accion: "alta", cambios: {}, por: yo.id, en: p.creado_en });
@@ -170,6 +186,7 @@
         if (!puedeCargar()) error("No tenés permiso para hacer esto.");
         Object.keys(cambios).forEach(k => { if (!CAMPOS_EDITABLES.has(k)) error("No tenés permiso para hacer esto."); });
         const p = buscar(id), antes = copia(p);
+        if ("sucursal" in cambios && !mia(cambios.sucursal)) error("No tenés permiso para hacer esto.");
         if ("despacho_fecha" in cambios && cambios.despacho_fecha !== p.despacho_fecha && p.estado !== "despachado") error("La fecha de despacho se carga al marcar el pedido como despachado.");
         const nuevoP = limpiar({ ...p, ...cambios });
         Object.assign(p, nuevoP, { actualizado_en: new Date().toISOString(), actualizado_por: yo.id });
@@ -198,14 +215,17 @@
       async guardarOpcion(o) {
         await esperar();
         if (rol() !== "admin") error("No tenés permiso para hacer esto.");
-        if (opciones.some(x => x.tipo === (o.tipo || (opciones.find(y => y.id === o.id) || {}).tipo) && x.valor === o.valor && x.id !== o.id)) error("Esa opción ya existe en la lista.");
+        if (o.id && opciones.some(x => x.id !== o.id && x.sucursal === o.sucursal && x.tipo === o.tipo && x.valor === o.valor)) error("Esa opción ya existe en la lista de esta sucursal.");
         if (o.id) { const x = opciones.find(y => y.id === o.id); Object.assign(x, { valor: o.valor, orden: o.orden, activo: o.activo }); return copia(x); }
-        const x = { id: secO++, tipo: o.tipo, valor: o.valor, orden: o.orden ?? 100, activo: true };
+        if (opciones.some(y => y.sucursal === o.sucursal && y.tipo === o.tipo && y.valor === o.valor)) error("Esa opción ya existe en la lista de esta sucursal.");
+        const x = { id: secO++, sucursal: o.sucursal, tipo: o.tipo, valor: o.valor, orden: o.orden ?? 100, activo: true };
         opciones.push(x);
         return copia(x);
       },
       async guardarAjuste(clave, valor) { await esperar(60); if (rol() !== "admin") error("No tenés permiso para hacer esto."); ajustes = { ...ajustes, [clave]: valor }; return { clave, valor }; },
-      async asignarRol(id, r) { await esperar(); if (rol() !== "admin") error("No tenés permiso para hacer esto."); const p = PERSONAS.find(x => x.id === id); if (p) { p.rol = r; p.activo = !!r; } },
+      async guardarVentanas(clave, ventanas) { await esperar(60); if (rol() !== "admin") error("No tenés permiso para hacer esto."); const x = SUCURSALES.find(y => y.clave === clave); x.ventanas = ventanas; return copia(x); },
+      async asignarRol(id, r, sucursales) { await esperar(); if (rol() !== "admin") error("No tenés permiso para hacer esto."); const p = PERSONAS.find(x => x.id === id); if (p) { p.rol = r; p.activo = !!r; p.sucursales = r ? sucursales : []; } },
+      async asignarSucursales(id, sucursales) { await esperar(); if (rol() !== "admin") error("No tenés permiso para hacer esto."); const p = PERSONAS.find(x => x.id === id); if (p) p.sucursales = sucursales; },
     },
   };
 })(window.FAC);

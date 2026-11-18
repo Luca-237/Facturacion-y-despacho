@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23e84e1b'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-size='20' fill='%23fff'%3EC%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/app.css?v=20261117.1">
-<link rel="stylesheet" href="css/facturacion.css?v=20261117.1">
-<script src="js/color.js?v=20261117.1"></script>
+<link rel="stylesheet" href="css/app.css?v=20261118.2">
+<link rel="stylesheet" href="css/facturacion.css?v=20261118.2">
+<script src="js/color.js?v=20261118.2"></script>
 <script>try { ColorFondo.aplicar(ColorFondo.leer()); } catch (e) {}</script>
 </head>
 <body>
@@ -71,6 +71,20 @@
   </form>
 </section>
 
+<!-- ============ Elegir sucursal (la primera vez; después se cambia desde la barra) ============ -->
+<section class="pantalla" id="pantalla-sucursal" hidden>
+  <button type="button" class="btn-tema" data-tema-boton aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>
+  <div class="tarjeta tarjeta-sucursal">
+    <header class="marca">
+      <span class="isotipo" aria-hidden="true">C</span>
+      <span><span class="titulo">Facturación y despacho</span><span class="sub">Cindy Mayorista</span></span>
+    </header>
+    <p class="pregunta-sucursal">¿Con qué sucursal vas a trabajar?</p>
+    <div class="opciones-sucursal" id="sucursal-opciones"></div>
+    <p class="hint">Queda guardada en este navegador. Se cambia cuando quieras desde la barra de arriba.</p>
+  </div>
+</section>
+
 <!-- ============ Aplicación ============ -->
 <div class="app" id="app" hidden>
   <header class="barra">
@@ -89,6 +103,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
         Facturación</a>
     </nav>
+    <label class="sucursal-actual" id="sucursal-actual" title="Sucursal" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+      <span class="sr-only">Sucursal</span>
+      <select id="sucursal-selector" aria-label="Sucursal"></select>
+      <span id="sucursal-nombre" hidden></span>
+    </label>
     <button type="button" class="btn-tema" id="btn-actualizar" aria-label="Actualizar los datos" title="Actualizar los datos desde la base"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
     <button type="button" class="btn-tema" data-tema-boton aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>
     <div class="usuario">
@@ -133,6 +153,18 @@
       <div class="vista-head">
         <div><h1>Planilla</h1><p class="sub" id="pl-sub">Todos los pedidos facturados. Clic en una celda para editar; Enter guarda y baja, Tab pasa a la siguiente, Esc cancela.</p></div>
         <div class="controles">
+          <div class="columnas-wrap">
+            <button type="button" class="btn-sec" id="pl-columnas" aria-expanded="false" aria-controls="pl-columnas-panel"></button>
+            <div class="pl-columnas-panel" id="pl-columnas-panel" role="dialog" aria-label="Columnas de la planilla" hidden>
+              <p class="pl-columnas-titulo">Columnas que se ven</p>
+              <div id="pl-columnas-lista"></div>
+              <div class="pl-columnas-acciones">
+                <button type="button" class="btn-sec" id="pl-columnas-ajustar">Ajustar anchos al contenido</button>
+                <button type="button" class="link" id="pl-columnas-restablecer">Volver a como venían</button>
+              </div>
+              <p class="hint">Para angostar una columna, arrastrá el borde derecho de su título. Doble clic en el borde: se ajusta a lo que muestra.</p>
+            </div>
+          </div>
           <button type="button" class="btn-sec" id="pl-exportar"></button>
           <button type="button" class="btn-sec primario" id="pl-nuevo" data-solo-carga hidden></button>
         </div>
@@ -199,24 +231,24 @@
           <div><label for="aj-t2">Horas hábiles desde el T1 hasta el aviso de T2</label><input type="number" id="aj-t2" min="1" max="240"></div>
           <div><label for="aj-t3">Horas hábiles desde el T2 hasta el aviso de baja (T3)</label><input type="number" id="aj-t3" min="1" max="240"></div>
           <div class="full"><label>Días que no cuentan como hábiles</label><div class="pastillas" id="aj-no-habiles"></div></div>
-          <div><label for="aj-ventanas">Ventanas de despacho</label><input type="text" id="aj-ventanas" placeholder="10:00, 15:00"><p class="hint">Horas separadas por coma.</p></div>
+          <div><label for="aj-ventanas" id="aj-ventanas-label">Ventanas de despacho</label><input type="text" id="aj-ventanas" placeholder="10:00, 15:00"><p class="hint">Horas separadas por coma. Son de la sucursal elegida arriba; los plazos y feriados valen para las dos.</p></div>
           <div><label for="aj-feriado">Feriados (no cuentan como hábiles)</label><div class="agregar-fila"><input type="date" id="aj-feriado"><button type="button" class="btn-sec" id="aj-feriado-agregar">Agregar</button></div>
             <div class="feriados" id="aj-feriados"></div></div>
         </div>
         <div class="dlg-pie"><button type="button" class="btn-sec primario" id="aj-guardar-plazos">Guardar plazos y ventanas</button></div>
       </div>
       <div class="caja">
-        <h2>Listas</h2>
+        <h2 id="aj-listas-titulo">Listas</h2>
         <div class="pestanas" id="aj-pestanas" role="tablist"></div>
         <ul class="lista-edit" id="aj-lista"></ul>
         <form class="agregar-fila" id="aj-agregar"><input type="text" id="aj-nuevo" maxlength="60"><button type="submit" class="btn-sec">Agregar</button></form>
-        <p class="hint">Los cambios se guardan solos. Las opciones no se borran: se desactivan. El número es el orden. Los transportes son los de rótulos (se cambian allá).</p>
+        <p class="hint">Son de la sucursal elegida arriba. Los cambios se guardan solos. Las opciones no se borran: se desactivan. El número es el orden. Los transportes son los de rótulos (se cambian allá).</p>
       </div>
       <div class="caja">
         <h2>Quién usa facturación</h2>
         <p class="hint" style="margin-top:0"><strong>Facturación</strong>: carga pedidos, manda mensajes, despacha y da de baja. <strong>Administración</strong>: confirma que el pago entró. <strong>Consulta</strong>: solo mira. Los superadmin de rótulos son admin acá. Son los mismos usuarios de rótulos (y la cuenta Cindy).</p>
         <div class="tabla-wrap"><table class="tabla grilla">
-          <thead><tr><th>Nombre</th><th>Usuario</th><th>En rótulos</th><th>Rol en facturación</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Usuario</th><th>En rótulos</th><th>Rol en facturación</th><th>Sucursales</th></tr></thead>
           <tbody id="aj-usuarios"></tbody>
         </table></div>
       </div>
@@ -256,20 +288,20 @@
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
-<script src="js/config.js?v=20261117.1"></script>
-<script src="js/utils.js?v=20261117.1"></script>
-<script src="js/plazos.js?v=20261117.1"></script>
-<script src="js/mensajes.js?v=20261117.1"></script>
-<script src="js/deshacer.js?v=20261117.1"></script>
-<script src="js/cuenta-cindy.js?v=20261117.1"></script>
-<script src="js/api.js?v=20261117.1"></script>
-<script src="js/datos.js?v=20261117.1"></script>
-<script src="js/vistas/acceso.js?v=20261117.1"></script>
-<script src="js/vistas/pedido.js?v=20261117.1"></script>
-<script src="js/vistas/hoy.js?v=20261117.1"></script>
-<script src="js/vistas/planilla.js?v=20261117.1"></script>
-<script src="js/vistas/despacho.js?v=20261117.1"></script>
-<script src="js/vistas/ajustes.js?v=20261117.1"></script>
-<script src="js/main.js?v=20261117.1"></script>
+<script src="js/config.js?v=20261118.2"></script>
+<script src="js/utils.js?v=20261118.2"></script>
+<script src="js/plazos.js?v=20261118.2"></script>
+<script src="js/mensajes.js?v=20261118.2"></script>
+<script src="js/deshacer.js?v=20261118.2"></script>
+<script src="js/cuenta-cindy.js?v=20261118.2"></script>
+<script src="js/api.js?v=20261118.2"></script>
+<script src="js/datos.js?v=20261118.2"></script>
+<script src="js/vistas/acceso.js?v=20261118.2"></script>
+<script src="js/vistas/pedido.js?v=20261118.2"></script>
+<script src="js/vistas/hoy.js?v=20261118.2"></script>
+<script src="js/vistas/planilla.js?v=20261118.2"></script>
+<script src="js/vistas/despacho.js?v=20261118.2"></script>
+<script src="js/vistas/ajustes.js?v=20261118.2"></script>
+<script src="js/main.js?v=20261118.2"></script>
 </body>
 </html>

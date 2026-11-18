@@ -154,19 +154,20 @@
   }
 
   // ---------- Lista de despacho (para Facu y Lorenzo) ----------
-  function listaDespacho(pedidos, ventana) {
-    if (!pedidos.length) return `¡Buenas! Para la ventana de las ${ventana}:\n\nNo hay pedidos para despachar. 🙌`;
+  function listaDespacho(pedidos, ventana, sucursal) {
+    const donde = sucursal ? ` (${sucursal})` : "";
+    if (!pedidos.length) return `¡Buenas! Para la ventana de las ${ventana}${donde}:\n\nNo hay pedidos para despachar. 🙌`;
     const lineas = pedidos.map(p => `• *${p.cliente}* — ${p.transporte || 'sin transporte'} — ${pesos(p.total ?? (Number(p.importe_1 || 0) + Number(p.importe_2 || 0)))}${p.observaciones ? ` (${p.observaciones})` : ''}`);
-    return `¡Buenas! Para la ventana de las ${ventana} (${pedidos.length} ${pedidos.length === 1 ? 'pedido' : 'pedidos'}):\n\n${lineas.join('\n')}\n\nAvisame cualquier duda 🙌`;
+    return `¡Buenas! Para la ventana de las ${ventana}${donde} (${pedidos.length} ${pedidos.length === 1 ? 'pedido' : 'pedidos'}):\n\n${lineas.join('\n')}\n\nAvisame cualquier duda 🙌`;
   }
 
   // ---------- Resumen del día ----------
   // grupos: { t1, t2, baja, confirmar, despachar, esperando, despachadosHoy } (listas de pedidos)
-  function resumenDia(grupos, { fecha, ventana } = {}) {
+  function resumenDia(grupos, { fecha, ventana, sucursal } = {}) {
     const linea = p => `• ${p.cliente}${p.transporte ? ' — ' + p.transporte : ''} — ${pesos(p.total)}${p._detalle ? ` (${p._detalle})` : ''}`;
     const seccion = (titulo, lista) => (lista && lista.length ? `${titulo} (${lista.length}):\n${lista.map(linea).join('\n')}` : '');
     const partes = [
-      `Resumen de facturación${fecha ? ' — ' + fecha : ''}`,
+      `Resumen de facturación${sucursal ? ' — ' + sucursal : ''}${fecha ? ' — ' + fecha : ''}`,
       seccion('🚨 Mandar T2 hoy', grupos.t2),
       seccion('❌ Dar de baja (sin respuesta al T2)', grupos.baja),
       seccion('✉️ Falta mandar el T1', grupos.t1),

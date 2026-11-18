@@ -4,7 +4,7 @@
 // =====================================================================
 (function (R) {
   const { $ } = R.util;
-  const PANTALLAS = ["pantalla-config", "pantalla-carga", "pantalla-login", "app"];
+  const PANTALLAS = ["pantalla-config", "pantalla-carga", "pantalla-login", "pantalla-sucursal", "app"];
   const ROLES = { admin: "Admin", facturacion: "Facturación", administracion: "Administración", consulta: "Consulta" };
 
   function mostrar(id) { PANTALLAS.forEach(p => { $(p).hidden = p !== id; }); }

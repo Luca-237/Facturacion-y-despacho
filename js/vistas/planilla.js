@@ -4,6 +4,9 @@
 //    Enter = guarda y baja · Tab / Mayús+Tab = guarda y pasa de columna
 //    Esc = cancela · flechas = moverse · Ctrl+C = copiar la celda · Ctrl+Z = deshacer
 //  El estado no se edita acá: un clic en "Estado" o "Qué falta" abre la ficha.
+//  Columnas: el botón "Columnas" elige cuáles se ven; el borde derecho de cada
+//  encabezado se arrastra para angostarla o ensancharla (doble clic: se ajusta al
+//  contenido). Las dos cosas se recuerdan en este navegador.
 //  Pedido nuevo: una fila arriba; se guarda cuando tiene cliente, y Enter/Tab
 //  van pasando de celda en celda para cargarlo de corrido.
 // =====================================================================
@@ -29,6 +32,30 @@
   ];
   const EDITABLES = new Set(["texto", "fecha", "cliente", "lista", "monto"]);
   const LOTE = 300;
+  const ANCHO_MIN = 48, ANCHO_MAX = 600, ANCHO_ACC = 40;
+  const AJUSTE_MAX = 260;   // "ajustar al contenido" no pasa de acá (lo que no entra se ve en el globo)
+  const SIEMPRE = new Set(["cliente"]);   // columnas que no se pueden ocultar
+
+  // { ocultas: ["armador", ...], anchos: { cliente: 180, ... } }, guardado en este navegador
+  let config = leerConfig();
+  function leerConfig() {
+    const c = pref.leer("pl-columnas", null) || {};
+    return { ocultas: Array.isArray(c.ocultas) ? c.ocultas.filter(k => !SIEMPRE.has(k)) : [], anchos: c.anchos && typeof c.anchos === "object" ? c.anchos : {} };
+  }
+  const guardarConfig = () => pref.guardar("pl-columnas", config);
+  // Índices (en COLS) de las columnas que se ven, en orden
+  const vis = () => COLS.map((col, i) => i).filter(i => !config.ocultas.includes(COLS[i].k));
+  const ancho = i => {
+    const a = Number(config.anchos[COLS[i].k]);
+    return a >= ANCHO_MIN && a <= ANCHO_MAX ? a : COLS[i].ancho;
+  };
+  // La columna visible más cercana a c, corrida dc lugares
+  function vecina(c, dc) {
+    const v = vis();
+    let pos = v.indexOf(c);
+    if (pos < 0) pos = Math.max(0, v.findIndex(i => i > c) - (dc > 0 ? 1 : 0));
+    return v[Math.max(0, Math.min(v.length - 1, pos + dc))];
+  }
 
   let filas = [];          // lo que se ve (filtrado y ordenado)
   let limite = LOTE;
@@ -89,10 +116,20 @@
     if (col.k === "cliente" && p.revisar) c.push("revisar");
     return c.join(" ");
   }
+  // Texto completo al pasar el mouse (para las columnas angostas)
+  function globo(p, col) {
+    if (p.id === "nuevo") return "";
+    let t = "";
+    if (col.k === "cliente") t = p.revisar ? `${p.cliente} · Revisar: ${p.revisar}` : p.cliente;
+    else if (col.tipo === "texto" || col.tipo === "lista") t = p[col.k] || "";
+    else if (col.tipo === "pend") { const pe = R.datos.pendiente(p); t = pe ? `${pe.texto}: ${pe.detalle}` : ""; }
+    else if (col.tipo === "estado") t = R.util.ESTADOS[p.estado] || "";
+    return t ? ` title="${esc(t)}"` : "";
+  }
   function filaHTML(p) {
     const pend = p.id !== "nuevo" && R.datos.pendiente(p);
     return `<tr data-id="${p.id}" class="est-${esc(p.estado)}${pend && pend.urgente ? " urgente" : ""}${p.id === "nuevo" ? " nueva" : ""}">`
-      + COLS.map((col, c) => `<td data-c="${c}" class="${claseCelda(p, col)}"${col.k === "cliente" && p.revisar ? ` title="${esc(p.revisar)}"` : ""}>${celdaHTML(p, col)}</td>`).join("")
+      + vis().map(c => { const col = COLS[c]; return `<td data-c="${c}" class="${claseCelda(p, col)}"${globo(p, col)}>${celdaHTML(p, col)}</td>`; }).join("")
       + `<td class="acc"><button type="button" class="btn-icono" data-abrir="${p.id}" title="Abrir la ficha" aria-label="Abrir la ficha"${p.id === "nuevo" ? " disabled" : ""}>${ICONOS.abrir}</button></td></tr>`;
   }
 
@@ -102,7 +139,7 @@
     filtrar();
     const visibles = filas.slice(0, limite);
     $("pl-cuerpo").innerHTML = visibles.length ? visibles.map(filaHTML).join("")
-      : `<tr><td colspan="${COLS.length + 1}" class="vacio" style="padding:22px">No hay pedidos con estos filtros.</td></tr>`;
+      : `<tr><td colspan="${vis().length + 1}" class="vacio" style="padding:22px">No hay pedidos con estos filtros.</td></tr>`;
     pintarResumen();
     $("pl-mas").hidden = filas.length <= limite;
     $("pl-mas").textContent = `Mostrar ${Math.min(LOTE, filas.length - limite)} más (quedan ${filas.length - limite})`;
@@ -140,7 +177,7 @@
   function activar(id, c, desplazar = true) {
     if (borrador && activa && activa.id === "nuevo" && id !== "nuevo" && !borrador.cliente) descartarBorrador();
     if (id !== cargando) cargando = null;
-    activa = { id, c: Math.max(0, Math.min(COLS.length - 1, c)) };
+    activa = { id, c: vis().includes(c) ? c : vecina(Math.max(0, Math.min(COLS.length - 1, c)), 0) };
     marcarActiva(desplazar);
     $("pl-wrap").focus({ preventScroll: true });
   }
@@ -149,7 +186,7 @@
     const i = filas.findIndex(p => p.id === activa.id);
     const ni = Math.max(0, Math.min(Math.min(filas.length, limite) - 1, i + df));
     if (!filas[ni]) return;
-    activar(filas[ni].id, activa.c + dc);
+    activar(filas[ni].id, dc ? vecina(activa.c, dc) : activa.c);
   }
 
   // ---------- Edición ----------
@@ -296,14 +333,14 @@
     if (!direccion) { marcarActiva(false); return; }
     if (direccion === "abajo") return mover(1, 0);
     const dc = direccion === "izquierda" ? -1 : 1;
-    if (!cargandoFila) return activar(activa.id, activa.c + dc);
-    // Pedido que se está cargando: pasa a la siguiente celda editable y la abre, para seguir de corrido
-    const p = pedidoDe(activa.id);
-    let c = activa.c + dc;
-    while (p && c >= 0 && c < COLS.length && !editable(p, COLS[c])) c += dc;
-    if (!p || c < 0 || c >= COLS.length) { cargando = null; return activar(activa.id, activa.c); }
-    activar(activa.id, c);
-    editar(activa.id, c);
+    if (!cargandoFila) return activar(activa.id, vecina(activa.c, dc));
+    // Pedido que se está cargando: pasa a la siguiente celda editable (y visible) y la abre, para seguir de corrido
+    const p = pedidoDe(activa.id), v = vis();
+    let pos = v.indexOf(activa.c) + dc;
+    while (p && pos >= 0 && pos < v.length && !editable(p, COLS[v[pos]])) pos += dc;
+    if (!p || pos < 0 || pos >= v.length) { cargando = null; return activar(activa.id, activa.c); }
+    activar(activa.id, v[pos]);
+    editar(activa.id, v[pos]);
   }
 
   // ---------- Pedido nuevo ----------
@@ -314,7 +351,7 @@
     borrador = {
       id: "nuevo", numero: "", tipo: "normal", fecha: hoy(), cliente: "", cliente_id: null, telefono: "", transporte: "",
       facturo: R.datos.facturoPorDefecto(), armador: "", importe_1: null, importe_2: null, alias_pago: R.datos.aliasPorDefecto(),
-      faltantes: "", observaciones: "", estado: "facturado", guia: "", revisar: "",
+      faltantes: "", observaciones: "", estado: "facturado", guia: "", revisar: "", sucursal: R.estado.sucursal,
     };
     limite = Math.max(limite, LOTE);
     pintar();
@@ -333,7 +370,7 @@
     if (!b || b._guardando) return;
     b._guardando = true;
     const datos = {};
-    ["numero", "tipo", "fecha", "cliente", "cliente_id", "telefono", "transporte", "facturo", "armador", "importe_1", "importe_2", "alias_pago", "faltantes", "observaciones"]
+    ["numero", "tipo", "fecha", "cliente", "cliente_id", "telefono", "transporte", "facturo", "armador", "importe_1", "importe_2", "alias_pago", "faltantes", "observaciones", "sucursal"]
       .forEach(k => { datos[k] = b[k]; });
     try {
       const p = await R.datos.crear(datos);
@@ -436,11 +473,129 @@
         R.util.ESTADOS[p.estado], pe ? pe.texto : "", p.armador, fh(p.t1_en), fh(p.t2_en), fh(p.pago_confirmado_en),
         p.despacho_fecha ? fmtFecha(p.despacho_fecha) : "", p.guia, p.nota_credito, p.observaciones];
     });
-    descargarCSV(`facturacion-${hoy()}.csv`, [enc, ...datos]);
+    descargarCSV(`facturacion-${R.estado.sucursal}-${hoy()}.csv`, [enc, ...datos]);
+  }
+
+  // ---------- Columnas: cuáles se ven y qué ancho tienen ----------
+  function pintarCabecera() {
+    $("pl-cabecera").innerHTML = vis().map(i => {
+      const c = COLS[i], num = ["monto", "calc"].includes(c.tipo) && c.k !== "despacho_fecha";
+      return `<th data-col="${i}" style="width:${ancho(i)}px"${num ? ' class="num"' : ""} title="${esc(c.t)}">${esc(c.t)}`
+        + `<span class="redim" data-redim="${i}" title="Arrastrá para cambiar el ancho · doble clic: ajustar al contenido" aria-hidden="true"></span></th>`;
+    }).join("") + `<th class="acc" style="width:${ANCHO_ACC}px"></th>`;
+    ajustarAnchoTabla();
+  }
+  function ajustarAnchoTabla() {
+    const total = vis().reduce((s, i) => s + ancho(i), 0) + ANCHO_ACC;
+    $("pl-tabla").style.width = total + "px";
+  }
+  function fijarAncho(i, px) {
+    const a = Math.round(Math.max(ANCHO_MIN, Math.min(ANCHO_MAX, px)));
+    config.anchos[COLS[i].k] = a;
+    const th = $("pl-cabecera").querySelector(`th[data-col="${i}"]`);
+    if (th) th.style.width = a + "px";
+    ajustarAnchoTabla();
+  }
+  // Ancho justo para lo que se ve en la columna (encabezado y filas pintadas)
+  function anchoContenido(i) {
+    const celdas = [...$("pl-cuerpo").querySelectorAll(`td[data-c="${i}"]`)];
+    const medir = document.createElement("span");
+    medir.className = "medir-celda";
+    document.body.appendChild(medir);
+    let max = 0;
+    for (const td of [$("pl-cabecera").querySelector(`th[data-col="${i}"]`), ...celdas].filter(Boolean)) {
+      medir.innerHTML = td.tagName === "TH" ? esc(COLS[i].t) : td.innerHTML;
+      medir.style.font = getComputedStyle(td).font;
+      medir.style.letterSpacing = getComputedStyle(td).letterSpacing;
+      medir.style.textTransform = getComputedStyle(td).textTransform;
+      max = Math.max(max, medir.getBoundingClientRect().width);
+    }
+    medir.remove();
+    return Math.min(AJUSTE_MAX, max + 24);   // + relleno de la celda
+  }
+
+  function iniciarRedimension() {
+    let arrastre = null;   // { i, x0, a0, el }
+    $("pl-cabecera").addEventListener("pointerdown", e => {
+      const h = e.target.closest("[data-redim]");
+      if (!h || e.button !== 0) return;
+      e.preventDefault();
+      const i = Number(h.dataset.redim);
+      arrastre = { i, x0: e.clientX, a0: ancho(i), el: h };
+      h.classList.add("activo");
+      h.setPointerCapture(e.pointerId);
+      document.body.classList.add("redimensionando");
+    });
+    $("pl-cabecera").addEventListener("pointermove", e => {
+      if (!arrastre) return;
+      fijarAncho(arrastre.i, arrastre.a0 + e.clientX - arrastre.x0);
+    });
+    const soltar = () => {
+      if (!arrastre) return;
+      arrastre.el.classList.remove("activo");
+      document.body.classList.remove("redimensionando");
+      arrastre = null;
+      guardarConfig();
+    };
+    $("pl-cabecera").addEventListener("pointerup", soltar);
+    $("pl-cabecera").addEventListener("pointercancel", soltar);
+    $("pl-cabecera").addEventListener("dblclick", e => {
+      const h = e.target.closest("[data-redim]");
+      if (!h) return;
+      const i = Number(h.dataset.redim);
+      fijarAncho(i, anchoContenido(i));
+      guardarConfig();
+    });
+  }
+
+  // Panel "Columnas": casillas, ajustar todas al contenido y volver a como venía
+  function pintarPanelColumnas() {
+    $("pl-columnas-lista").innerHTML = COLS.map((c, i) => `<label class="check-col${SIEMPRE.has(c.k) ? " fija" : ""}">
+        <input type="checkbox" data-col-ver="${i}" ${config.ocultas.includes(c.k) ? "" : "checked"} ${SIEMPRE.has(c.k) ? "disabled" : ""}>${esc(c.t)}</label>`).join("");
+  }
+  function aplicarColumnas() {
+    if (activa && !vis().includes(activa.c)) activa.c = vecina(activa.c, 0);
+    pintarCabecera();
+    pintar();
+    guardarConfig();
+  }
+  function iniciarPanelColumnas() {
+    const panel = $("pl-columnas-panel"), boton = $("pl-columnas");
+    const cerrar = () => { panel.hidden = true; boton.setAttribute("aria-expanded", "false"); };
+    boton.innerHTML = ICONOS.columnas + "Columnas";
+    boton.addEventListener("click", () => {
+      if (!panel.hidden) return cerrar();
+      if (edicion) return toast("Terminá de editar la celda antes de cambiar las columnas.", "error");
+      pintarPanelColumnas();
+      panel.hidden = false;
+      boton.setAttribute("aria-expanded", "true");
+    });
+    panel.addEventListener("change", e => {
+      const c = e.target.closest("[data-col-ver]");
+      if (!c) return;
+      const k = COLS[Number(c.dataset.colVer)].k;
+      config.ocultas = c.checked ? config.ocultas.filter(x => x !== k) : [...new Set([...config.ocultas, k])];
+      aplicarColumnas();
+    });
+    $("pl-columnas-ajustar").addEventListener("click", () => {
+      vis().forEach(i => { config.anchos[COLS[i].k] = Math.round(Math.max(ANCHO_MIN, Math.min(ANCHO_MAX, anchoContenido(i)))); });
+      aplicarColumnas();
+      toast("Columnas ajustadas a lo que muestran.");
+    });
+    $("pl-columnas-restablecer").addEventListener("click", () => {
+      config = { ocultas: [], anchos: {} };
+      pintarPanelColumnas();
+      aplicarColumnas();
+      toast("Columnas como venían.");
+    });
+    document.addEventListener("click", e => { if (!panel.hidden && !e.target.closest("#pl-columnas-panel, #pl-columnas")) cerrar(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { cerrar(); boton.focus(); } });
   }
 
   function iniciar() {
-    $("pl-cabecera").innerHTML = COLS.map(c => `<th style="min-width:${c.ancho}px"${["monto", "calc"].includes(c.tipo) && c.k !== "despacho_fecha" ? ' class="num"' : ""}>${esc(c.t)}</th>`).join("") + `<th class="acc"></th>`;
+    pintarCabecera();
+    iniciarRedimension();
+    iniciarPanelColumnas();
     $("pl-exportar").innerHTML = ICONOS.descarga + "Exportar a Excel";
     $("pl-nuevo").innerHTML = ICONOS.mas + "Nuevo pedido";
     $("pl-wrap").tabIndex = 0;

@@ -22,8 +22,10 @@ const U = {
   mirar: '00000000-0000-0000-0000-00000000000e',     // consulta
   operador: '00000000-0000-0000-0000-00000000000f',  // usa rótulos, sin acceso a facturación
   baja: '00000000-0000-0000-0000-000000000010',      // facturacion, pero perfil desactivado
+  santi: '00000000-0000-0000-0000-000000000011',     // facturacion, solo Córdoba
 };
 const CLERK = 'user_2abcClerkGreisy';
+const SUCURSALES = '20261118100000_sucursales.sql';
 let db;
 
 before(async () => {
@@ -45,7 +47,10 @@ before(async () => {
     grant execute on function auth.uid() to anon, authenticated;
     grant usage on schema public to anon, authenticated;
   `);
-  for (const { sql } of [...leer(ROTULOS), ...leer(PROPIAS)]) await db.exec(sql);
+  // Como en la base real: primero rótulos y facturación, se cargan datos, y recién después
+  // la migración de sucursales (así se prueba que lo anterior pasa a Casa Central)
+  const propias = leer(PROPIAS);
+  for (const { sql } of [...leer(ROTULOS), ...propias.filter(m => m.n < SUCURSALES)]) await db.exec(sql);
   for (const [nombre, id] of Object.entries(U)) {
     await db.query('insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3)',
       [id, `${nombre}@rotulos.cindymayorista.com.ar`, { nombre: nombre[0].toUpperCase() + nombre.slice(1) }]);
@@ -59,6 +64,12 @@ before(async () => {
     -- Cuenta Cindy (Clerk) de Greisy vinculada a su perfil
     update public.perfiles set clerk_id = '${CLERK}' where id = '${U.greisy}';
     insert into public.clientes (nombre, tel, transporte) values ('FARMACIA ROCA', '353 4123456', 'VIA CARGO');
+    insert into public.fac_pedidos (cliente, numero) values ('PEDIDO DE ANTES', '11000');
+  `);
+  for (const { sql } of propias.filter(m => m.n >= SUCURSALES)) await db.exec(sql);
+  await db.exec(`
+    insert into public.fac_usuarios (perfil_id, rol, sucursales) values ('${U.santi}', 'facturacion', '{cordoba}');
+    update public.fac_usuarios set sucursales = '{central,cordoba}' where perfil_id = '${U.guada}';
   `);
 });
 
@@ -78,9 +89,9 @@ async function comoClerk(sub, sql, params = []) {
   });
 }
 const alta = (usuario, p) => como(usuario,
-  `insert into public.fac_pedidos (cliente, numero, transporte, facturo, importe_1, importe_2, fecha)
-   values ($1, $2, $3, $4, $5, $6, coalesce($7::date, (now() at time zone 'America/Argentina/Cordoba')::date)) returning *`,
-  [p.cliente ?? 'CLIENTE', p.numero ?? '', p.transporte ?? 'VIA CARGO', p.facturo ?? 'Greisy', p.importe_1 ?? 100000, p.importe_2 ?? null, p.fecha ?? null])
+  `insert into public.fac_pedidos (cliente, numero, transporte, facturo, importe_1, importe_2, fecha, sucursal)
+   values ($1, $2, $3, $4, $5, $6, coalesce($7::date, (now() at time zone 'America/Argentina/Cordoba')::date), $8) returning *`,
+  [p.cliente ?? 'CLIENTE', p.numero ?? '', p.transporte ?? 'VIA CARGO', p.facturo ?? 'Greisy', p.importe_1 ?? 100000, p.importe_2 ?? null, p.fecha ?? null, p.sucursal ?? 'central'])
   .then(f => f[0]);
 const accion = (usuario, id, a, p = {}) => como(usuario, 'select * from public.fac_accion($1, $2, $3)', [id, a, p]).then(f => f[0]);
 const fila = async id => (await db.query('select * from public.fac_pedidos where id = $1', [id])).rows[0];
@@ -211,7 +222,7 @@ t('despachar sin pago: solo el admin (excepción)', async () => {
 });
 
 t('cuenta Cindy: carga y cambia estados como su perfil', async () => {
-  const [p] = await comoClerk(CLERK, `insert into public.fac_pedidos (cliente, importe_1) values ('DESDE CLERK', 1000) returning *`);
+  const [p] = await comoClerk(CLERK, `insert into public.fac_pedidos (cliente, importe_1, sucursal) values ('DESDE CLERK', 1000, 'central') returning *`);
   const greisy = (await db.query('select id from public.perfiles where auth_id = $1', [U.greisy])).rows[0].id;
   assert.equal(p.creado_por, greisy);
   const [r] = await comoClerk(CLERK, 'select * from public.fac_accion($1, $2)', [p.id, 't1']);
@@ -253,14 +264,14 @@ t('ajustes, listas y usuarios: solo el admin los cambia', async () => {
   await assert.rejects(como(U.greisy, `update public.fac_ajustes set valor = '72' where clave = 'horas_t2' returning clave`)
     .then(f => { if (!f.length) throw new Error('row-level security'); }), /row-level security/);
   assert.equal((await como(U.luca, `update public.fac_ajustes set valor = '48' where clave = 'horas_t2' returning clave`)).length, 1);
-  await assert.rejects(como(U.greisy, `insert into public.fac_opciones (tipo, valor) values ('armador', 'Nuevo')`), /row-level security/);
-  await como(U.luca, `insert into public.fac_opciones (tipo, valor) values ('armador', 'Lolo')`);
+  await assert.rejects(como(U.greisy, `insert into public.fac_opciones (sucursal, tipo, valor) values ('central', 'armador', 'Nuevo')`), /row-level security/);
+  await como(U.luca, `insert into public.fac_opciones (sucursal, tipo, valor) values ('central', 'armador', 'Lolo')`);
   const operador = (await db.query('select id from public.perfiles where auth_id = $1', [U.operador])).rows[0].id;
   await assert.rejects(como(U.greisy, `insert into public.fac_usuarios (perfil_id, rol) values ($1, 'facturacion')`, [operador]), /row-level security/);
   await como(U.luca, `insert into public.fac_usuarios (perfil_id, rol) values ($1, 'consulta')`, [operador]);
   assert.equal((await como(U.operador, 'select public.fac_rol() as r'))[0].r, 'consulta', 'el admin le da acceso');
   await como(U.luca, `delete from public.fac_usuarios where perfil_id = $1`, [operador]);
-  const ops = await como(U.greisy, `select valor from public.fac_opciones where tipo = 'facturo' order by orden`);
+  const ops = await como(U.greisy, `select valor from public.fac_opciones where tipo = 'facturo' and sucursal = 'central' order by orden`);
   assert.deepEqual(ops.map(o => o.valor), ['Greisy', 'Guada']);
 });
 
@@ -270,7 +281,89 @@ t('no toca rótulos: un operador sigue viendo clientes y transportes', async () 
   assert.equal((await como(U.operador, `select public.es_superadmin() as s`))[0].s, false);
 });
 
-t('se puede correr dos veces', async () => {
-  for (const { sql } of leer(PROPIAS)) await db.exec(sql);
+t('la migración de sucursales se puede correr dos veces sin pisar lo asignado', async () => {
+  await db.exec(`update public.fac_usuarios set sucursales = '{}' where perfil_id = '${U.mirar}'`);
+  for (const { sql } of leer(PROPIAS).filter(m => m.n >= SUCURSALES)) await db.exec(sql);
   assert.equal((await db.query(`select count(*)::int as n from public.fac_opciones where tipo = 'facturo'`)).rows[0].n, 2);
+  assert.equal((await db.query(`select count(*)::int as n from public.fac_sucursales`)).rows[0].n, 2);
+  assert.deepEqual((await db.query(`select sucursales from public.fac_usuarios where perfil_id = '${U.mirar}'`)).rows[0].sucursales, []);
+  await db.exec(`update public.fac_usuarios set sucursales = '{central}' where perfil_id = '${U.mirar}'`);
+});
+
+// ---------------------------------------------------------------------
+//  Sucursales (Casa Central / Córdoba Capital)
+// ---------------------------------------------------------------------
+t('migración: lo que había queda en Casa Central', async () => {
+  const [p] = (await db.query(`select sucursal from public.fac_pedidos where cliente = 'PEDIDO DE ANTES'`)).rows;
+  assert.equal(p.sucursal, 'central');
+  const u = (await db.query(`select sucursales from public.fac_usuarios where perfil_id = '${U.greisy}'`)).rows[0];
+  assert.deepEqual(u.sucursales, ['central']);
+  assert.equal((await db.query(`select count(*)::int as n from public.fac_opciones where sucursal <> 'central'`)).rows[0].n, 0);
+  const s = (await db.query(`select clave, ventanas from public.fac_sucursales order by orden`)).rows;
+  assert.deepEqual(s.map(x => x.clave), ['central', 'cordoba']);
+  assert.deepEqual(s[1].ventanas, ['10:00', '15:00'], 'las ventanas que había pasan a las dos');
+  assert.equal((await db.query(`select count(*)::int as n from public.fac_ajustes where clave = 'ventanas'`)).rows[0].n, 0);
+});
+
+t('cada uno ve las sucursales que tiene asignadas (el admin, todas)', async () => {
+  const mis = async u => (await como(u, 'select public.fac_mis_sucursales() as s'))[0].s;
+  assert.deepEqual(await mis(U.greisy), ['central']);
+  assert.deepEqual(await mis(U.santi), ['cordoba']);
+  assert.deepEqual(await mis(U.guada), ['central', 'cordoba']);
+  assert.deepEqual(await mis(U.luca), ['central', 'cordoba']);
+  assert.deepEqual(await mis(U.operador), []);
+  const c = await alta(U.greisy, { cliente: 'CLIENTE DE CENTRAL' });
+  const k = await alta(U.santi, { cliente: 'CLIENTE DE CORDOBA', sucursal: 'cordoba' });
+  const ve = async u => (await como(u, 'select id from public.fac_pedidos')).map(x => x.id);
+  assert.ok((await ve(U.greisy)).includes(c.id) && !(await ve(U.greisy)).includes(k.id));
+  assert.ok((await ve(U.santi)).includes(k.id) && !(await ve(U.santi)).includes(c.id));
+  assert.ok((await ve(U.guada)).includes(c.id) && (await ve(U.guada)).includes(k.id));
+  assert.ok((await ve(U.luca)).includes(k.id));
+});
+
+t('no se carga ni se mueve un pedido a una sucursal ajena', async () => {
+  await assert.rejects(alta(U.greisy, { sucursal: 'cordoba' }), /row-level security/);
+  // Sin sucursal (versión anterior de la página) queda en Casa Central: Córdoba no puede
+  await assert.rejects(como(U.santi, `insert into public.fac_pedidos (cliente) values ('SIN SUCURSAL')`), /row-level security/);
+  assert.equal((await como(U.greisy, `insert into public.fac_pedidos (cliente) values ('SIN SUCURSAL') returning sucursal`))[0].sucursal, 'central');
+  await assert.rejects(alta(U.greisy, { sucursal: 'rosario' }), /row-level security|foreign key/);
+  const p = await alta(U.greisy, {});
+  await assert.rejects(como(U.greisy, `update public.fac_pedidos set sucursal = 'cordoba' where id = $1`, [p.id]), /row-level security/);
+  // Quien tiene las dos sí lo puede pasar de una a otra
+  const [m] = await como(U.guada, `update public.fac_pedidos set sucursal = 'cordoba' where id = $1 returning sucursal`, [p.id]);
+  assert.equal(m.sucursal, 'cordoba');
+  assert.equal((await como(U.greisy, 'select id from public.fac_pedidos where id = $1', [p.id])).length, 0);
+});
+
+t('acciones, historial y borrado solo en pedidos de mis sucursales', async () => {
+  const k = await alta(U.santi, { cliente: 'SOLO CORDOBA', sucursal: 'cordoba' });
+  await assert.rejects(accion(U.greisy, k.id, 't1'), /no existe/);
+  await assert.rejects(accion(U.anto, k.id, 'confirmar_pago'), /no existe/, 'administración de Central no confirma pagos de Córdoba');
+  assert.equal((await accion(U.santi, k.id, 't1')).estado, 'esperando_pago');
+  assert.equal((await como(U.greisy, 'select * from public.fac_historial where pedido_id = $1', [k.id])).length, 0);
+  assert.ok((await como(U.santi, 'select * from public.fac_historial where pedido_id = $1', [k.id])).length >= 2);
+  assert.equal((await como(U.greisy, 'delete from public.fac_pedidos where id = $1 returning id', [k.id])).length, 0);
+});
+
+t('listas por sucursal: el mismo nombre puede estar en las dos', async () => {
+  await como(U.luca, `insert into public.fac_opciones (sucursal, tipo, valor) values ('cordoba', 'facturo', 'Greisy')`);
+  await assert.rejects(como(U.luca, `insert into public.fac_opciones (sucursal, tipo, valor) values ('cordoba', 'facturo', 'Greisy')`), /fac_opciones_unico_sucursal/);
+  const ops = await como(U.santi, `select sucursal, valor from public.fac_opciones where tipo = 'facturo' and valor = 'Greisy' order by sucursal`);
+  assert.deepEqual(ops.map(o => o.sucursal), ['central', 'cordoba']);
+  await db.exec(`delete from public.fac_opciones where sucursal = 'cordoba' and tipo = 'facturo' and valor = 'Greisy'`);
+});
+
+t('ventanas por sucursal: las cambia el admin', async () => {
+  const [r] = await como(U.luca, `update public.fac_sucursales set ventanas = '["11:00"]' where clave = 'cordoba' returning ventanas`);
+  assert.deepEqual(r.ventanas, ['11:00']);
+  assert.equal((await como(U.santi, `update public.fac_sucursales set ventanas = '["09:00"]' where clave = 'cordoba' returning clave`)).length, 0);
+  assert.equal((await como(U.operador, 'select * from public.fac_sucursales')).length, 0, 'sin acceso a facturación no ve las sucursales');
+  await db.exec(`update public.fac_sucursales set ventanas = '["10:00", "15:00"]' where clave = 'cordoba'`);
+});
+
+t('personas: con sus sucursales', async () => {
+  const ps = await como(U.luca, 'select email, sucursales from public.fac_personas()');
+  const de = n => ps.find(x => x.email.startsWith(n + '@')).sucursales;
+  assert.deepEqual(de('santi'), ['cordoba']);
+  assert.deepEqual(de('luca'), ['central', 'cordoba']);
 });
