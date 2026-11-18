@@ -34,7 +34,7 @@
   }
 
   function botones(p, clave) {
-    const carga = R.app.puedeCargar(), cobra = R.app.puedeCobrar();
+    const carga = R.app.puedeFacturar(), cobra = R.app.puedeCobrar();
     const b = (accion, texto, icono, clase = "") => `<button type="button" class="btn-sec ${clase}" data-hacer="${accion}" data-id="${p.id}">${icono || ""}${esc(texto)}</button>`;
     const out = [];
     if (clave === "t1" && carga) out.push(b("msg-t1", "Mensaje T1", ICONOS.mensaje, "primario"));

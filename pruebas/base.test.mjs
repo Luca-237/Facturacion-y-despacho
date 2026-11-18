@@ -119,7 +119,7 @@ t('quien no tiene acceso no ve ni carga pedidos', async () => {
   assert.equal((await como(U.operador, 'select * from public.fac_pedidos')).length, 0);
   await assert.rejects(alta(U.operador, { cliente: 'X' }), /row-level security/);
   await assert.rejects(alta(U.mirar, { cliente: 'X' }), /row-level security/, 'consulta solo mira');
-  await assert.rejects(alta(U.anto, { cliente: 'X' }), /row-level security/, 'administración no carga pedidos');
+  assert.ok((await alta(U.anto, { cliente: 'CARGADO POR ADMINISTRACION' })).id, 'administración también carga pedidos');
   assert.ok((await como(U.mirar, 'select * from public.fac_pedidos')).length > 0);
 });
 
@@ -366,4 +366,29 @@ t('personas: con sus sucursales', async () => {
   const de = n => ps.find(x => x.email.startsWith(n + '@')).sucursales;
   assert.deepEqual(de('santi'), ['cordoba']);
   assert.deepEqual(de('luca'), ['central', 'cordoba']);
+});
+
+// ---------------------------------------------------------------------
+//  Administración también carga pedidos (20261118200000)
+// ---------------------------------------------------------------------
+t('administración carga y corrige pedidos, pero no cambia estados de facturación', async () => {
+  const p = await alta(U.anto, { cliente: 'ALTA DE ADMINISTRACION', importe_1: 5000 });
+  const anto = (await db.query('select id from public.perfiles where auth_id = $1', [U.anto])).rows[0].id;
+  assert.equal(p.creado_por, anto);
+  const [c] = await como(U.anto, `update public.fac_pedidos set importe_2 = 1000, observaciones = 'cargado por admin' where id = $1 returning total`, [p.id]);
+  assert.equal(Number(c.total), 6000);
+  await assert.rejects(accion(U.anto, p.id, 't1'), /No tenés permiso/, 'el T1 sigue siendo de facturación');
+  await assert.rejects(accion(U.anto, p.id, 'despachar'), /No tenés permiso/);
+  await assert.rejects(accion(U.anto, p.id, 'baja'), /No tenés permiso/);
+  assert.equal((await accion(U.anto, p.id, 'confirmar_pago')).estado, 'listo', 'y sigue confirmando pagos');
+  await assert.rejects(como(U.anto, `update public.fac_pedidos set estado = 'despachado' where id = $1`, [p.id]), /permission denied/);
+  await assert.rejects(alta(U.anto, { sucursal: 'cordoba' }), /row-level security/, 'solo en sus sucursales');
+});
+
+t('administración borra lo que cargó dentro de las 2 horas, no lo de otros', async () => {
+  const propio = await alta(U.anto, {});
+  const ajeno = await alta(U.greisy, {});
+  assert.equal((await como(U.anto, 'delete from public.fac_pedidos where id = $1 returning id', [ajeno.id])).length, 0);
+  assert.equal((await como(U.anto, 'delete from public.fac_pedidos where id = $1 returning id', [propio.id])).length, 1);
+  assert.equal((await como(U.mirar, `insert into public.fac_pedidos (cliente) values ('X') returning id`).catch(() => [])).length, 0, 'consulta sigue sin cargar');
 });

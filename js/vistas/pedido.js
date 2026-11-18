@@ -33,7 +33,7 @@
 
   // ---------- Botones de acción según el estado y el rol ----------
   function botones(p) {
-    const carga = R.app.puedeCargar(), cobra = R.app.puedeCobrar(), b = [];
+    const carga = R.app.puedeFacturar(), cobra = R.app.puedeCobrar(), b = [];
     const boton = (accion, texto, icono, clase = "") => `<button type="button" class="btn-sec ${clase}" data-accion="${accion}">${icono || ""}${esc(texto)}</button>`;
     const abierto = ["facturado", "esperando_pago", "pago_informado"].includes(p.estado);
     if (carga && p.estado === "facturado") b.push(boton("msg-t1", "Mensaje T1", ICONOS.mensaje, "primario"));
@@ -176,7 +176,7 @@
   }
 
   function pintarMensajes(p) {
-    const carga = R.app.puedeCargar();
+    const carga = R.app.puedeFacturar();
     if (!msg.editado) msg.texto = generar(p);
     const marca = carga && MARCA[msg.plantilla](p);
     const tel = M.telefonoWhatsapp(p.telefono);
@@ -218,7 +218,7 @@
   function refrescarTexto(p) { msg.texto = generar(p); $("pd-texto").value = msg.texto; }
 
   async function enviar(p, como) {
-    const marca = R.app.puedeCargar() && msg.marcar && MARCA[msg.plantilla](p);
+    const marca = R.app.puedeFacturar() && msg.marcar && MARCA[msg.plantilla](p);
     let texto = $("pd-texto").value;
     // La baja va primero: el T3 lleva el número de nota de crédito
     if (marca && marca.accion === "baja") {

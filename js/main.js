@@ -1,7 +1,7 @@
 // =====================================================================
 //  Arranque: sesión, rol en facturación y navegación entre secciones.
 //    facturacion    -> Hoy, Planilla, Despacho (carga y cambia estados)
-//    administracion -> Hoy (pagos a confirmar), Planilla y Despacho para mirar
+//    administracion -> confirma pagos; también carga y corrige pedidos (Hoy, Planilla)
 //    consulta       -> todo para mirar
 //    admin          -> todo, más Ajustes (los superadmin de rótulos)
 // =====================================================================
@@ -20,7 +20,10 @@
   const app = {
     rol,
     esAdmin: () => rol() === "admin",
-    puedeCargar: () => ["admin", "facturacion"].includes(rol()),
+    // Cargar y corregir pedidos (planilla, datos de la ficha)
+    puedeCargar: () => ["admin", "facturacion", "administracion"].includes(rol()),
+    // Acciones de facturación: T1/T2, pago informado, despacho, baja
+    puedeFacturar: () => ["admin", "facturacion"].includes(rol()),
     puedeCobrar: () => ["admin", "administracion"].includes(rol()),
     // Vuelve a pintar lo que está a la vista (después de un cambio)
     refrescar() {

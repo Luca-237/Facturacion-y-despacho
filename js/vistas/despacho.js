@@ -23,7 +23,7 @@
     $("desp-sub").textContent = l.length
       ? `${l.length} ${l.length === 1 ? "pedido listo" : "pedidos listos"} (${pesos(total)}). Próxima ventana: ${prox ? prox.hora + " " + (prox.dia === "hoy" || prox.dia === "mañana" ? prox.dia : R.util.fmtFecha(prox.dia)) : "—"}.`
       : "No hay pedidos con el pago confirmado esperando despacho.";
-    const carga = R.app.puedeCargar();
+    const carga = R.app.puedeFacturar();
     $("desp-cuerpo").innerHTML = l.length ? l.map(p => `<tr>
         <td><input type="checkbox" data-elegir="${p.id}" ${fuera.has(p.id) ? "" : "checked"} aria-label="Incluir en la lista"></td>
         <td><button type="button" class="link" data-abrir="${p.id}">${esc(p.cliente)}</button>${p.numero ? `<small>N° ${esc(p.numero)}</small>` : ""}</td>

@@ -95,7 +95,8 @@
   ej(7, { sucursal: "cordoba", facturo: "Facturación Córdoba", estado: "listo", creado_en: haceHoras(30), t1_en: haceHoras(29), pago_informado_en: haceHoras(6), pago_confirmado_en: haceHoras(4), pago_confirmado_por: "p-luca", fecha: diaHace(1), creado_por: "p-cba" });
 
   const error = m => { throw new Error(m); };
-  const puedeCargar = () => ["admin", "facturacion"].includes(rol());
+  const puedeCargar = () => ["admin", "facturacion"].includes(rol());   // acciones de facturación
+  const puedeEditar = () => ["admin", "facturacion", "administracion"].includes(rol());   // cargar y corregir
   const puedeCobrar = () => ["admin", "administracion"].includes(rol());
   const registrar = (antes, despues) => {
     const cambios = {};
@@ -173,7 +174,7 @@
       async uno(id) { await esperar(); return copia(buscar(id)); },
       async crear(datos) {
         await esperar();
-        if (!puedeCargar()) error("No tenés permiso para hacer esto.");
+        if (!puedeEditar()) error("No tenés permiso para hacer esto.");
         Object.keys(datos).forEach(k => { if (!CAMPOS_EDITABLES.has(k)) error("No tenés permiso para hacer esto."); });
         if (!mia(datos.sucursal)) error("No tenés permiso para hacer esto.");
         const p = limpiar(nuevo(datos));
@@ -183,7 +184,7 @@
       },
       async actualizar(id, cambios) {
         await esperar();
-        if (!puedeCargar()) error("No tenés permiso para hacer esto.");
+        if (!puedeEditar()) error("No tenés permiso para hacer esto.");
         Object.keys(cambios).forEach(k => { if (!CAMPOS_EDITABLES.has(k)) error("No tenés permiso para hacer esto."); });
         const p = buscar(id), antes = copia(p);
         if ("sucursal" in cambios && !mia(cambios.sucursal)) error("No tenés permiso para hacer esto.");
@@ -196,7 +197,7 @@
       async borrar(id) {
         await esperar();
         const p = buscar(id);
-        const ok = rol() === "admin" || (rol() === "facturacion" && p.creado_por === yo.id && Date.now() - Date.parse(p.creado_en) < 7200000);
+        const ok = rol() === "admin" || (["facturacion", "administracion"].includes(rol()) && p.creado_por === yo.id && Date.now() - Date.parse(p.creado_en) < 7200000);
         if (!ok) error("No se pudo borrar: solo el admin, o quien lo cargó dentro de las 2 horas.");
         pedidos.splice(pedidos.indexOf(p), 1);
         historial.push({ id: secH++, pedido_id: id, accion: "borrado", cambios: copia(p), por: yo.id, en: new Date().toISOString() });
