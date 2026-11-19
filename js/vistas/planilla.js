@@ -32,7 +32,11 @@
   ];
   const EDITABLES = new Set(["texto", "fecha", "cliente", "lista", "monto"]);
   const LOTE = 300;
-  const ANCHO_MIN = 48, ANCHO_MAX = 600, ANCHO_ACC = 40;
+  const ANCHO_MIN = 48, ANCHO_MAX = 600, ANCHO_ACC = 40, ANCHO_SEL = 36;
+  const seleccion = new Set();   // ids marcados con la casilla de la izquierda
+  let ultimoMarcado = null;      // para marcar un rango con Mayús + clic
+  const puedeSeleccionar = () => R.app.puedeFacturar();
+  const ABIERTOS = ["facturado", "esperando_pago", "pago_informado"];
   const AJUSTE_MAX = 260;   // "ajustar al contenido" no pasa de acá (lo que no entra se ve en el globo)
   const SIEMPRE = new Set(["cliente"]);   // columnas que no se pueden ocultar
 
@@ -128,7 +132,9 @@
   }
   function filaHTML(p) {
     const pend = p.id !== "nuevo" && R.datos.pendiente(p);
-    return `<tr data-id="${p.id}" class="est-${esc(p.estado)}${pend && pend.urgente ? " urgente" : ""}${p.id === "nuevo" ? " nueva" : ""}">`
+    const sel = puedeSeleccionar()
+      ? `<td class="sel">${p.id === "nuevo" ? "" : `<input type="checkbox" data-sel="${p.id}" aria-label="Seleccionar ${esc(p.cliente)}" ${seleccion.has(p.id) ? "checked" : ""}>`}</td>` : "";
+    return `<tr data-id="${p.id}" class="est-${esc(p.estado)}${pend && pend.urgente ? " urgente" : ""}${p.id === "nuevo" ? " nueva" : ""}${seleccion.has(p.id) ? " marcada" : ""}">` + sel
       + vis().map(c => { const col = COLS[c]; return `<td data-c="${c}" class="${claseCelda(p, col)}"${globo(p, col)}>${celdaHTML(p, col)}</td>`; }).join("")
       + `<td class="acc"><button type="button" class="btn-icono" data-abrir="${p.id}" title="Abrir la ficha" aria-label="Abrir la ficha"${p.id === "nuevo" ? " disabled" : ""}>${ICONOS.abrir}</button></td></tr>`;
   }
@@ -139,8 +145,9 @@
     filtrar();
     const visibles = filas.slice(0, limite);
     $("pl-cuerpo").innerHTML = visibles.length ? visibles.map(filaHTML).join("")
-      : `<tr><td colspan="${vis().length + 1}" class="vacio" style="padding:22px">No hay pedidos con estos filtros.</td></tr>`;
+      : `<tr><td colspan="${vis().length + 1 + (puedeSeleccionar() ? 1 : 0)}" class="vacio" style="padding:22px">No hay pedidos con estos filtros.</td></tr>`;
     pintarResumen();
+    pintarSeleccion();
     $("pl-mas").hidden = filas.length <= limite;
     $("pl-mas").textContent = `Mostrar ${Math.min(LOTE, filas.length - limite)} más (quedan ${filas.length - limite})`;
     marcarActiva(false);
@@ -478,7 +485,8 @@
 
   // ---------- Columnas: cuáles se ven y qué ancho tienen ----------
   function pintarCabecera() {
-    $("pl-cabecera").innerHTML = vis().map(i => {
+    const todas = puedeSeleccionar() ? `<th class="sel" style="width:${ANCHO_SEL}px"><input type="checkbox" id="pl-sel-todas" aria-label="Seleccionar todos los que se ven"></th>` : "";
+    $("pl-cabecera").innerHTML = todas + vis().map(i => {
       const c = COLS[i], num = ["monto", "calc"].includes(c.tipo) && c.k !== "despacho_fecha";
       return `<th data-col="${i}" style="width:${ancho(i)}px"${num ? ' class="num"' : ""} title="${esc(c.t)}">${esc(c.t)}`
         + `<span class="redim" data-redim="${i}" title="Arrastrá para cambiar el ancho · doble clic: ajustar al contenido" aria-hidden="true"></span></th>`;
@@ -486,7 +494,7 @@
     ajustarAnchoTabla();
   }
   function ajustarAnchoTabla() {
-    const total = vis().reduce((s, i) => s + ancho(i), 0) + ANCHO_ACC;
+    const total = vis().reduce((s, i) => s + ancho(i), 0) + ANCHO_ACC + (puedeSeleccionar() ? ANCHO_SEL : 0);
     $("pl-tabla").style.width = total + "px";
   }
   function fijarAncho(i, px) {
@@ -592,7 +600,95 @@
     document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { cerrar(); boton.focus(); } });
   }
 
+  // ---------- Selección de varios pedidos: "Dar de baja" y "Eliminar" ----------
+  function marcados() {
+    return [...seleccion].map(id => R.datos.porId(id)).filter(Boolean);
+  }
+  function pintarSeleccion() {
+    // Lo que ya no existe (otra persona lo borró, cambió de sucursal) sale de la selección
+    [...seleccion].forEach(id => { if (!R.datos.porId(id)) seleccion.delete(id); });
+    const lista = marcados(), n = lista.length;
+    $("pl-seleccion").hidden = !n;
+    $("pl-sel-cuenta").textContent = n === 1 ? "1 seleccionado" : `${n} seleccionados`;
+    const abiertos = lista.filter(p => ABIERTOS.includes(p.estado)).length;
+    $("pl-sel-baja").innerHTML = ICONOS.x + `Dar de baja${abiertos && abiertos !== n ? ` (${abiertos})` : ""}`;
+    $("pl-sel-baja").disabled = !abiertos;
+    $("pl-sel-baja").title = abiertos ? "" : "Solo se dan de baja pedidos sin pago confirmado ni despacho";
+    $("pl-sel-eliminar").innerHTML = ICONOS.basura + "Eliminar";
+    const todas = $("pl-sel-todas");
+    if (todas) {
+      const visibles = filas.slice(0, limite).filter(p => p.id !== "nuevo");
+      const marcadosVis = visibles.filter(p => seleccion.has(p.id)).length;
+      todas.checked = visibles.length > 0 && marcadosVis === visibles.length;
+      todas.indeterminate = marcadosVis > 0 && marcadosVis < visibles.length;
+    }
+  }
+  function marcar(id, valor) {
+    if (valor) seleccion.add(id); else seleccion.delete(id);
+    const tr = $("pl-cuerpo").querySelector(`tr[data-id="${id}"]`);
+    if (tr) { tr.classList.toggle("marcada", valor); const c = tr.querySelector("[data-sel]"); if (c) c.checked = valor; }
+  }
+  async function bajaSeleccion() {
+    const abiertos = marcados().filter(p => ABIERTOS.includes(p.estado));
+    if (!abiertos.length) return;
+    const otros = seleccion.size - abiertos.length;
+    const v = await R.util.formulario({
+      titulo: abiertos.length === 1 ? `Dar de baja: ${abiertos[0].cliente}` : `Dar de baja ${abiertos.length} pedidos`,
+      texto: `Pasan a Baja y se desarman. La nota de crédito y el motivo se cargan igual en todos (la NC se puede completar después en cada uno).${otros ? ` ${otros} de los seleccionados no se tocan porque ya tienen el pago confirmado, están despachados o dados de baja.` : ""}`,
+      campos: [
+        { id: "nota_credito", label: "N° de nota de crédito (opcional)", tipo: "text", valor: "" },
+        { id: "motivo", label: "Motivo", tipo: "text", valor: "Sin respuesta al T2" },
+      ],
+      boton: abiertos.length === 1 ? "Dar de baja" : `Dar de baja ${abiertos.length}`,
+      peligro: true,
+    });
+    if (!v) return;
+    await R.datos.bajaVarios(abiertos, v);
+    abiertos.forEach(p => seleccion.delete(p.id));
+    pintar();
+  }
+  async function eliminarSeleccion() {
+    const lista = marcados();
+    if (!lista.length) return;
+    const ok = await R.util.pedir({
+      titulo: lista.length === 1 ? "Eliminar pedido" : `Eliminar ${lista.length} pedidos`,
+      texto: (lista.length === 1 ? `Se elimina el pedido de ${lista[0].cliente}.` : `Se eliminan ${lista.length} pedidos: ${lista.slice(0, 4).map(p => p.cliente).join(", ")}${lista.length > 4 ? "…" : ""}.`)
+        + ` Desaparecen de la planilla para todos. Se puede deshacer enseguida con "Deshacer" (o Ctrl+Z); queda en el historial quién los eliminó. Para un pedido que no se pagó, usá "Dar de baja".`,
+      boton: lista.length === 1 ? "Eliminar" : `Eliminar ${lista.length}`,
+      peligro: true,
+    });
+    if (ok == null) return;
+    await R.datos.borrarVarios(lista);
+    lista.forEach(p => seleccion.delete(p.id));
+    pintar();
+  }
+  function iniciarSeleccion() {
+    $("pl-sel-baja").addEventListener("click", () => bajaSeleccion().catch(e => toast(e.message, "error")));
+    $("pl-sel-eliminar").addEventListener("click", () => eliminarSeleccion().catch(e => toast(e.message, "error")));
+    $("pl-sel-limpiar").addEventListener("click", () => { seleccion.clear(); pintar(); });
+    $("pl-cuerpo").addEventListener("click", e => {
+      const c = e.target.closest("[data-sel]");
+      if (!c) return;
+      e.stopPropagation();
+      const id = Number(c.dataset.sel);
+      // Mayús + clic: marca (o desmarca) todo el tramo desde el último tocado
+      if (e.shiftKey && ultimoMarcado != null) {
+        const ids = filas.slice(0, limite).map(p => p.id);
+        const a = ids.indexOf(ultimoMarcado), b = ids.indexOf(id);
+        if (a >= 0 && b >= 0) ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => { if (x !== "nuevo") marcar(x, c.checked); });
+      } else marcar(id, c.checked);
+      ultimoMarcado = id;
+      pintarSeleccion();
+    }, true);
+    $("pl-cabecera").addEventListener("change", e => {
+      if (e.target.id !== "pl-sel-todas") return;
+      filas.slice(0, limite).forEach(p => { if (p.id !== "nuevo") marcar(p.id, e.target.checked); });
+      pintarSeleccion();
+    });
+  }
+
   function iniciar() {
+    iniciarSeleccion();
     pintarCabecera();
     iniciarRedimension();
     iniciarPanelColumnas();
@@ -600,7 +696,13 @@
     $("pl-nuevo").innerHTML = ICONOS.mas + "Nuevo pedido";
     $("pl-wrap").tabIndex = 0;
     $("pl-estado").value = pref.leer("pl-estado", "abiertos");
-    const alFiltrar = () => { limite = LOTE; pref.guardar("pl-estado", $("pl-estado").value); pintar(); };
+    const alFiltrar = () => {
+      limite = LOTE; pref.guardar("pl-estado", $("pl-estado").value);
+      filtrar();
+      const visibles = new Set(filas.map(p => p.id));
+      [...seleccion].forEach(id => { if (!visibles.has(id)) seleccion.delete(id); });
+      pintar();
+    };
     ["pl-estado", "pl-transporte", "pl-desde", "pl-hasta"].forEach(id => $(id).addEventListener("change", alFiltrar));
     let t;
     $("pl-buscar").addEventListener("input", () => { clearTimeout(t); t = setTimeout(alFiltrar, 200); });
@@ -628,6 +730,7 @@
   }
 
   function mostrar() {
+    pintarCabecera();   // la casilla de selección depende del rol
     const sel = $("pl-transporte"), actual = sel.value;
     const usados = [...new Set([...R.datos.transportes(), ...R.datos.pedidos.map(p => p.transporte).filter(Boolean)])].sort();
     sel.innerHTML = `<option value="">Todos</option>` + usados.map(t => `<option ${t === actual ? "selected" : ""}>${esc(t)}</option>`).join("");

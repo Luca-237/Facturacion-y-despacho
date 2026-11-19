@@ -214,3 +214,13 @@ body.redimensionando, body.redimensionando * { cursor:col-resize !important; use
 .pl-columnas-panel { left:0; right:auto; }
 .pl-columnas-acciones { flex-direction:column; align-items:stretch; }
 .pl-columnas-acciones .link { align-self:center; }
+
+/* ---------- Planilla: selección de varios pedidos ---------- */
+.planilla-fac th.sel, .planilla-fac td.sel { width:36px; padding:0; text-align:center; cursor:default; }
+.planilla-fac th.sel input, .planilla-fac td.sel input { width:16px; height:16px; margin:0; cursor:pointer; vertical-align:middle; }
+.planilla-fac tbody tr.marcada td { background:var(--naranja-tenue); }
+.planilla-fac tbody tr.marcada:hover td { background:var(--naranja-suave); }
+.seleccion-acciones { display:inline-flex; align-items:center; gap:8px; padding:4px 6px 4px 12px; border-radius:var(--r-pill); background:var(--blanco); box-shadow:var(--sombra); }
+.seleccion-acciones .btn-sec { padding:7px 11px; font-size:13px; }
+.seleccion-cuenta { font:600 13px/1 var(--display); color:var(--negro); white-space:nowrap; }
+.seleccion-acciones .link { font-size:12.5px; padding-right:6px; white-space:nowrap; }

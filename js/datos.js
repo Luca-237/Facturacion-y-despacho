@@ -89,11 +89,42 @@
       if (avisar) toast(`Guardado: ${campos}.`, "ok", 5000, { texto: "Deshacer", fn: () => pila.ejecutar(id) });
       return nuevo;
     },
-    async borrar(p) {
-      await R.api.pedidos.borrar(p.id);
-      D.quitar(p.id);
-      toast(`Se borró el pedido de ${p.cliente}.`);
+    async borrar(p) { return D.borrarVarios([p]); },
+    // Elimina varios pedidos; "Deshacer" los restaura. Devuelve cuántos se borraron.
+    async borrarVarios(lista) {
+      const borrados = [], errores = [];
+      for (const p of lista) {
+        try { await R.api.pedidos.borrar(p.id); D.quitar(p.id); borrados.push(p); }
+        catch (e) { errores.push(`${p.cliente}: ${e.message}`); }
+      }
+      if (borrados.length) {
+        const texto = borrados.length === 1 ? `Se eliminó el pedido de ${borrados[0].cliente}` : `Se eliminaron ${borrados.length} pedidos`;
+        const id = pila.registrar({
+          texto,
+          deshacer: async () => { for (const p of borrados) D.poner(await R.api.pedidos.restaurar(p.id)); R.app.refrescar(); },
+        });
+        toast(texto + (errores.length ? ` (${errores.length} no se pudieron).` : "."), errores.length ? "error" : "ok", 7000, { texto: "Deshacer", fn: () => pila.ejecutar(id) });
+      } else if (errores.length) toast(errores[0], "error");
       R.app.refrescar();
+      return borrados.length;
+    },
+    // Da de baja varios pedidos con la misma nota de crédito / motivo; "Deshacer" vuelve cada uno un paso
+    async bajaVarios(lista, datos) {
+      const hechos = [], errores = [];
+      for (const p of lista) {
+        try { D.poner(await R.api.pedidos.accion(p.id, "baja", datos)); hechos.push(p); }
+        catch (e) { errores.push(`${p.cliente}: ${e.message}`); }
+      }
+      if (hechos.length) {
+        const texto = hechos.length === 1 ? `Dado de baja: ${hechos[0].cliente}` : `${hechos.length} pedidos dados de baja`;
+        const id = pila.registrar({
+          texto,
+          deshacer: async () => { for (const p of hechos) D.poner(await R.api.pedidos.accion(p.id, "volver")); R.app.refrescar(); },
+        });
+        toast(texto + (errores.length ? ` (${errores.length} no se pudieron).` : "."), errores.length ? "error" : "ok", 7000, { texto: "Deshacer", fn: () => pila.ejecutar(id) });
+      } else if (errores.length) toast(errores[0], "error");
+      R.app.refrescar();
+      return hechos.length;
     },
     // Cambio de estado (fac_accion), con "Deshacer" = volver un paso
     async accion(p, accion, datos = {}) {

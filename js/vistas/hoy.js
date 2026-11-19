@@ -12,7 +12,7 @@
     { k: "t2", titulo: "Mandar T2", icono: ICONOS.alerta, ayuda: "Pasaron las horas hábiles desde el T1 sin pago. Mandá el recordatorio.", urgente: true },
     { k: "baja", titulo: "Dar de baja (T3)", icono: ICONOS.basura, ayuda: "No respondieron al T2. Se da de baja, se emite la nota de crédito y se avisa con el T3.", urgente: true },
     { k: "t1", titulo: "Mandar T1", icono: ICONOS.mensaje, ayuda: "Recién facturados: mandá la factura, el rótulo y los datos de pago el mismo día." },
-    { k: "confirmar", titulo: "Pagos a confirmar", icono: ICONOS.billete, ayuda: "El cliente mandó el comprobante. Administración confirma que el dinero entró." },
+    { k: "confirmar", titulo: "Pagos a confirmar", icono: ICONOS.billete, ayuda: "El cliente mandó el comprobante. Administración o Facturación confirman que el dinero entró." },
     { k: "despachar", titulo: "Listos para despachar", icono: ICONOS.camion, ayuda: "Pago confirmado. Salen en la próxima ventana." },
     { k: "nc", titulo: "Falta el n° de nota de crédito", icono: ICONOS.alerta, ayuda: "Pedidos dados de baja sin la nota de crédito cargada." },
   ];
@@ -75,7 +75,7 @@
       kpi("t2", "Mandar T2", g.t2.length, "más de 48 h hábiles sin pago", true),
       kpi("baja", "Dar de baja", g.baja.length, "sin respuesta al T2", true),
       kpi("t1", "Mandar T1", g.t1.length, "facturados sin contactar", false),
-      kpi("confirmar", "Pagos a confirmar", g.confirmar.length, "esperan a administración", R.app.rol() === "administracion"),
+      kpi("confirmar", "Pagos a confirmar", g.confirmar.length, "comprobantes por revisar", R.app.rol() === "administracion"),
       kpi("despachar", "Para despachar", g.despachar.length, g.despachar.length ? pesos(totalDesp) : "nada pendiente", false),
     ].join("");
 
@@ -113,7 +113,7 @@
     const rol = R.app.rol();
     if (rol === "administracion") return g.confirmar.length;
     if (rol === "consulta") return 0;
-    return g.t2.length + g.baja.length + g.t1.length + (rol === "admin" ? g.confirmar.length : 0);
+    return g.t2.length + g.baja.length + g.t1.length + g.confirmar.length;
   }
 
   async function hacer(accion, id) {

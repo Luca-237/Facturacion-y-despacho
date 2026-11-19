@@ -122,8 +122,10 @@
     async actualizar(id, cambios) { return numeros(chequear(await sb.from("fac_pedidos").update(cambios).eq("id", id).select().single())); },
     async borrar(id) {
       const filas = chequear(await sb.from("fac_pedidos").delete().eq("id", id).select("id"));
-      if (!filas.length) throw new Error("No se pudo borrar: solo el admin, o quien lo cargó dentro de las 2 horas.");
+      if (!filas.length) throw new Error("No se pudo eliminar: no tenés permiso sobre este pedido.");
     },
+    // Vuelve a crear un pedido eliminado tal como estaba (para "Deshacer")
+    async restaurar(id) { return numeros(chequear(await sb.rpc("fac_restaurar", { p_id: id }))); },
     // t1, t2, informar_pago, confirmar_pago, rechazar_pago, despachar, baja, volver
     async accion(id, accion, datos = {}) { return numeros(chequear(await sb.rpc("fac_accion", { p_id: id, p_accion: accion, p: datos }))); },
     async historial(id) { return chequear(await sb.from("fac_historial").select("*").eq("pedido_id", id).order("en", { ascending: false }).order("id", { ascending: false })); },

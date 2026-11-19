@@ -95,7 +95,7 @@
     const ed = R.app.puedeCargar();
     const dis = ed ? "" : "disabled";
     const linea = (texto, en, por) => (en ? `<li><span>${texto}</span><span>${fechaHora(en)}${por ? " · " + esc(R.datos.nombrePersona(por)) : ""}</span></li>` : "");
-    const puedeBorrar = R.app.esAdmin() || (ed && p.creado_por === R.estado.perfil.id && Date.now() - Date.parse(p.creado_en) < 2 * 3600000);
+    const puedeBorrar = R.app.puedeFacturar() || (ed && p.creado_por === R.estado.perfil.id && Date.now() - Date.parse(p.creado_en) < 2 * 3600000);
     $("pd-panel").innerHTML = `
       <form id="pd-form" class="form-grid pd-form" autocomplete="off">
         <div><label for="pd-numero">N° de pedido</label><input id="pd-numero" maxlength="40" value="${esc(p.numero)}" ${dis}></div>

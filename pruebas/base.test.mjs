@@ -155,8 +155,7 @@ t('circuito completo: T1, T2, pago informado, confirmado, despachado', async () 
   assert.ok(r.t2_en);
   r = await accion(U.greisy, p.id, 'informar_pago');
   assert.equal(r.estado, 'pago_informado');
-  await assert.rejects(accion(U.greisy, p.id, 'confirmar_pago'), /No tenés permiso/, 'facturación no confirma pagos');
-  await assert.rejects(accion(U.mirar, p.id, 'confirmar_pago'), /No tenés permiso/);
+  await assert.rejects(accion(U.mirar, p.id, 'confirmar_pago'), /No tenés permiso/, 'consulta no confirma pagos');
   r = await accion(U.anto, p.id, 'confirmar_pago');
   assert.equal(r.estado, 'listo');
   assert.equal(r.pago_confirmado_por, (await db.query('select id from public.perfiles where auth_id = $1', [U.anto])).rows[0].id);
@@ -177,7 +176,7 @@ t('deshacer: cada paso vuelve al anterior', async () => {
   assert.equal(r.estado, 'esperando_pago'); assert.equal(r.t2_en, null);
   await accion(U.greisy, p.id, 'informar_pago');
   await accion(U.anto, p.id, 'confirmar_pago');
-  await assert.rejects(accion(U.greisy, p.id, 'volver'), /No tenés permiso/, 'el pago confirmado lo deshace administración');
+  await assert.rejects(accion(U.mirar, p.id, 'volver'), /No tenés permiso/, 'consulta no deshace nada');
   await accion(U.greisy, p.id, 'despachar', {});
   r = await accion(U.greisy, p.id, 'volver');
   assert.equal(r.estado, 'listo'); assert.equal(r.despacho_fecha, null);
@@ -242,14 +241,13 @@ t('historial: queda cada cambio con quién lo hizo', async () => {
   await assert.rejects(como(U.greisy, `delete from public.fac_historial where pedido_id = $1`, [p.id]), /permission denied/);
 });
 
-t('borrar: el que cargó dentro de 2 horas, o el admin', async () => {
+t('borrar: facturación cualquiera de su sucursal; consulta nada', async () => {
   const p = await alta(U.greisy, {});
-  assert.equal((await como(U.guada, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 0, 'otra persona no lo borra');
-  assert.equal((await como(U.greisy, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 1);
+  assert.equal((await como(U.mirar, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 0, 'consulta no borra');
+  assert.equal((await como(U.guada, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 1, 'otra persona de facturación sí');
   const q = await alta(U.greisy, {});
-  await db.query(`update public.fac_pedidos set creado_en = now() - interval '3 hours' where id = $1`, [q.id]);
-  assert.equal((await como(U.greisy, 'delete from public.fac_pedidos where id = $1 returning id', [q.id])).length, 0, 'pasadas las 2 horas');
-  assert.equal((await como(U.luca, 'delete from public.fac_pedidos where id = $1 returning id', [q.id])).length, 1);
+  await db.query(`update public.fac_pedidos set creado_en = now() - interval '30 days' where id = $1`, [q.id]);
+  assert.equal((await como(U.greisy, 'delete from public.fac_pedidos where id = $1 returning id', [q.id])).length, 1, 'aunque sea viejo');
 });
 
 t('personas: nombres solo para quien tiene acceso; el admin ve a todos para asignar roles', async () => {
@@ -391,4 +389,50 @@ t('administración borra lo que cargó dentro de las 2 horas, no lo de otros', a
   assert.equal((await como(U.anto, 'delete from public.fac_pedidos where id = $1 returning id', [ajeno.id])).length, 0);
   assert.equal((await como(U.anto, 'delete from public.fac_pedidos where id = $1 returning id', [propio.id])).length, 1);
   assert.equal((await como(U.mirar, `insert into public.fac_pedidos (cliente) values ('X') returning id`).catch(() => [])).length, 0, 'consulta sigue sin cargar');
+});
+
+// ---------------------------------------------------------------------
+//  Facturación también confirma pagos (20261118300000)
+// ---------------------------------------------------------------------
+t('facturación confirma y rechaza pagos (y lo puede deshacer)', async () => {
+  const p = await alta(U.greisy, { cliente: 'PAGO CONFIRMADO POR FACTURACION' });
+  await accion(U.greisy, p.id, 't1');
+  await accion(U.greisy, p.id, 'informar_pago');
+  let r = await accion(U.greisy, p.id, 'rechazar_pago');
+  assert.equal(r.estado, 'esperando_pago');
+  await accion(U.greisy, p.id, 'informar_pago');
+  r = await accion(U.greisy, p.id, 'confirmar_pago');
+  assert.equal(r.estado, 'listo');
+  const greisy = (await db.query('select id from public.perfiles where auth_id = $1', [U.greisy])).rows[0].id;
+  assert.equal(r.pago_confirmado_por, greisy, 'queda quién confirmó');
+  assert.equal((await accion(U.greisy, p.id, 'volver')).estado, 'pago_informado');
+  // Con la cuenta Cindy de Greisy, igual
+  assert.equal((await comoClerk(CLERK, 'select * from public.fac_accion($1, $2)', [p.id, 'confirmar_pago']))[0].estado, 'listo');
+  // Pero solo en sus sucursales
+  const k = await alta(U.santi, { sucursal: 'cordoba' });
+  await assert.rejects(accion(U.greisy, k.id, 'confirmar_pago'), /no existe/);
+  assert.equal((await accion(U.santi, k.id, 'confirmar_pago')).estado, 'listo', 'Facturación de Córdoba confirma los suyos');
+});
+
+// ---------------------------------------------------------------------
+//  Facturación elimina y se puede deshacer (20261119100000)
+// ---------------------------------------------------------------------
+t('eliminar y restaurar: vuelve igual, con su estado y fechas', async () => {
+  const p = await alta(U.greisy, { cliente: 'PARA BORRAR Y VOLVER', importe_1: 1234.5, importe_2: 100 });
+  await accion(U.greisy, p.id, 't1');
+  const antes = await fila(p.id);
+  assert.equal((await como(U.greisy, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 1);
+  await assert.rejects(como(U.mirar, 'select * from public.fac_restaurar($1)', [p.id]), /No tenés permiso/);
+  await assert.rejects(como(U.santi, 'select * from public.fac_restaurar($1)', [p.id]), /No tenés permiso/, 'otra sucursal no lo restaura');
+  const [r] = await como(U.greisy, 'select * from public.fac_restaurar($1)', [p.id]);
+  assert.equal(r.id, p.id);
+  assert.equal(r.estado, 'esperando_pago');
+  assert.equal(Number(r.total), 1334.5);
+  assert.equal(String(r.t1_en), String(antes.t1_en));
+  assert.equal(r.creado_por, antes.creado_por);
+  await assert.rejects(como(U.greisy, 'select * from public.fac_restaurar($1)', [p.id]), /ya existe/);
+  // Córdoba no borra pedidos de Central
+  assert.equal((await como(U.santi, 'delete from public.fac_pedidos where id = $1 returning id', [p.id])).length, 0);
+  // Y el número sigue: el próximo pedido no choca con el restaurado
+  assert.ok((await alta(U.greisy, {})).id > p.id);
 });

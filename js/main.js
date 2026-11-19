@@ -24,7 +24,8 @@
     puedeCargar: () => ["admin", "facturacion", "administracion"].includes(rol()),
     // Acciones de facturación: T1/T2, pago informado, despacho, baja
     puedeFacturar: () => ["admin", "facturacion"].includes(rol()),
-    puedeCobrar: () => ["admin", "administracion"].includes(rol()),
+    // Confirmar o rechazar pagos (desde el 18/11 también Facturación)
+    puedeCobrar: () => ["admin", "administracion", "facturacion"].includes(rol()),
     // Vuelve a pintar lo que está a la vista (después de un cambio)
     refrescar() {
       if (vistaActual) VISTAS[vistaActual].v().mostrar();

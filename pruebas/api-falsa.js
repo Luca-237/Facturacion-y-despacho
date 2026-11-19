@@ -97,7 +97,7 @@
   const error = m => { throw new Error(m); };
   const puedeCargar = () => ["admin", "facturacion"].includes(rol());   // acciones de facturación
   const puedeEditar = () => ["admin", "facturacion", "administracion"].includes(rol());   // cargar y corregir
-  const puedeCobrar = () => ["admin", "administracion"].includes(rol());
+  const puedeCobrar = () => ["admin", "administracion", "facturacion"].includes(rol());
   const registrar = (antes, despues) => {
     const cambios = {};
     Object.keys(despues).forEach(k => { if (!["actualizado_en", "actualizado_por", "total"].includes(k) && JSON.stringify(antes[k]) !== JSON.stringify(despues[k])) cambios[k] = [antes[k] ?? null, despues[k] ?? null]; });
@@ -197,10 +197,21 @@
       async borrar(id) {
         await esperar();
         const p = buscar(id);
-        const ok = rol() === "admin" || (["facturacion", "administracion"].includes(rol()) && p.creado_por === yo.id && Date.now() - Date.parse(p.creado_en) < 7200000);
-        if (!ok) error("No se pudo borrar: solo el admin, o quien lo cargó dentro de las 2 horas.");
+        const ok = ["admin", "facturacion"].includes(rol()) || (rol() === "administracion" && p.creado_por === yo.id && Date.now() - Date.parse(p.creado_en) < 7200000);
+        if (!ok) error("No se pudo eliminar: no tenés permiso sobre este pedido.");
         pedidos.splice(pedidos.indexOf(p), 1);
         historial.push({ id: secH++, pedido_id: id, accion: "borrado", cambios: copia(p), por: yo.id, en: new Date().toISOString() });
+      },
+      async restaurar(id) {
+        await esperar();
+        if (!["admin", "facturacion", "administracion"].includes(rol())) error("No tenés permiso para hacer esto.");
+        const h = [...historial].reverse().find(x => x.pedido_id === id && x.accion === "borrado");
+        if (!h) error("No se encontró el pedido borrado.");
+        if (!mia(h.cambios.sucursal)) error("No tenés permiso para hacer esto.");
+        const p = copia(h.cambios);
+        pedidos.push(p);
+        historial.push({ id: secH++, pedido_id: id, accion: "alta", cambios: {}, por: yo.id, en: new Date().toISOString() });
+        return copia(p);
       },
       async accion(id, a, d) { await esperar(); return accion(id, a, d); },
       async historial(id) { await esperar(); return copia(historial.filter(h => h.pedido_id === id)).reverse(); },
