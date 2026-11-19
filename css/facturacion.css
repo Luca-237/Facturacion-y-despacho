@@ -242,8 +242,19 @@ body.redimensionando, body.redimensionando * { cursor:col-resize !important; use
 .leyenda-estados .ley { --c-est:var(--muted); display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 8px; border:1px solid color-mix(in srgb, var(--c-est) 45%, var(--blanco)); border-radius:var(--r-pill);
   background:color-mix(in srgb, var(--c-est) var(--e-tinte), var(--blanco)); color:var(--texto); font:500 12px/1.3 var(--sans); cursor:pointer; white-space:nowrap; transition:border-color var(--t-rapida) var(--ease); }
 .leyenda-estados .ley::before { content:""; width:9px; height:9px; border-radius:3px; background:var(--c-est); flex:none; }
-.leyenda-estados button.ley:hover { border-color:var(--c-est); }
-.leyenda-estados .ley[aria-pressed="true"] { border-color:var(--c-est); box-shadow:inset 0 0 0 1px var(--c-est); font-weight:600; }
+.leyenda-estados .ley:has(.ley-color)::before { content:none; }
+.leyenda-estados .ley:has(.ley-filtro) { cursor:default; padding-left:5px; }
+.leyenda-estados .ley:hover:has(.ley-filtro) { border-color:var(--c-est); }
+.leyenda-estados .ley.activa { border-color:var(--c-est); box-shadow:inset 0 0 0 1px var(--c-est); font-weight:600; }
+/* Cuadradito que abre el selector de color (el input queda invisible encima) */
+.leyenda-estados .ley-color { position:relative; display:inline-flex; width:15px; height:15px; border-radius:4px; background:var(--c-est); flex:none; cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); transition:transform var(--t-rapida) var(--ease); }
+.leyenda-estados .ley-color:hover { transform:scale(1.15); }
+.leyenda-estados .ley-color:focus-within { outline:2px solid var(--c-est); outline-offset:2px; }
+.leyenda-estados .ley-color input { position:absolute; inset:0; width:100%; height:100%; opacity:0; border:0; padding:0; cursor:pointer; }
+.leyenda-estados .ley-filtro { padding:0; border:0; background:none; color:inherit; font:inherit; cursor:pointer; text-decoration:inherit; }
+.leyenda-estados .ley-restablecer { padding:4px 8px; border:0; background:none; color:var(--muted); font:500 12px/1.3 var(--sans); text-decoration:underline; cursor:pointer; }
+.leyenda-estados .ley-restablecer:hover { color:var(--texto); }
 .leyenda-estados .ley.est-baja { text-decoration:line-through; text-decoration-color:var(--tenue); }
 .leyenda-estados .leyenda-revisar { --c-est:var(--alerta); cursor:default; }
 .leyenda-estados .est-facturado { --c-est:var(--e-facturado); }

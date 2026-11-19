@@ -258,12 +258,14 @@ window.FAC = window.FAC || {};
   }
   function iniciarTema() {
     pintarBotonesTema();
+    coloresEstado.aplicar();
     document.addEventListener("click", e => {
       if (!e.target.closest("[data-tema-boton]")) return;
       const nuevo = TEMAS[temaActual()].siguiente;
       document.documentElement.dataset.tema = nuevo;
       try { if (nuevo === "claro") localStorage.removeItem("fac-tema"); else localStorage.setItem("fac-tema", nuevo); } catch (err) {}
       pintarBotonesTema();
+      coloresEstado.aplicar();
       document.dispatchEvent(new CustomEvent("fac-tema"));
     });
   }
@@ -272,6 +274,39 @@ window.FAC = window.FAC || {};
   const pref = {
     leer(clave, defecto) { try { const v = localStorage.getItem("fac-" + clave); return v == null ? defecto : JSON.parse(v); } catch (e) { return defecto; } },
     guardar(clave, valor) { try { localStorage.setItem("fac-" + clave, JSON.stringify(valor)); } catch (e) {} },
+    borrar(clave) { try { localStorage.removeItem("fac-" + clave); } catch (e) {} },
+  };
+
+  // ---------- Colores de los estados, a gusto de cada persona (en este navegador) ----------
+  // Se eligen tocando el cuadradito de la leyenda de la planilla. Cada tema (claro / oscuro) tiene su propia
+  // paleta; lo elegido pisa las variables --e-* de css/facturacion.css, así cambian filas, chips y leyenda juntos.
+  const VAR_ESTADO = {
+    facturado: "--e-facturado", esperando_pago: "--e-esperando", pago_informado: "--e-informado",
+    listo: "--e-listo", despachado: "--e-despachado", baja: "--e-baja",
+  };
+  const esHex = c => /^#[0-9a-f]{6}$/i.test(c || "");
+  const coloresEstado = {
+    elegidos() { const e = pref.leer("colores-" + temaActual(), {}); return e && typeof e === "object" ? e : {}; },
+    aplicar() {
+      const elegidos = this.elegidos();
+      const raiz = document.documentElement.style;
+      Object.entries(VAR_ESTADO).forEach(([k, v]) => { if (esHex(elegidos[k])) raiz.setProperty(v, elegidos[k]); else raiz.removeProperty(v); });
+    },
+    // Color que se ve ahora (elegido o el de fábrica), en #rrggbb para el selector de color
+    actual(k) {
+      const c = getComputedStyle(document.documentElement).getPropertyValue(VAR_ESTADO[k]).trim().toLowerCase();
+      if (esHex(c)) return c;
+      if (/^#[0-9a-f]{3}$/.test(c)) return "#" + [...c.slice(1)].map(x => x + x).join("");
+      return "#888888";
+    },
+    // guardar=false: solo se prueba en pantalla (mientras se arrastra en el selector)
+    cambiar(k, color, guardar = true) {
+      if (!VAR_ESTADO[k] || !esHex(color)) return;
+      document.documentElement.style.setProperty(VAR_ESTADO[k], color);
+      if (guardar) pref.guardar("colores-" + temaActual(), { ...this.elegidos(), [k]: color.toLowerCase() });
+    },
+    personalizados() { return Object.keys(this.elegidos()).some(k => VAR_ESTADO[k]); },
+    restablecer() { pref.borrar("colores-" + temaActual()); this.aplicar(); },
   };
 
   // ---------- Esqueletos de carga ----------
@@ -295,6 +330,6 @@ window.FAC = window.FAC || {};
   R.util = {
     $, esc, norm, aEmail, aUsuario, ZONA, iso, hoy, fmtFecha, fmtFechaCorta, fmtHora, fechaHora, fmtNum, fmtPesos, fmtPesosCorto, fmtPct,
     plural, hace, aInputFechaHora, deInputFechaHora, leerMonto, toast, descargarCSV, iniciarDialogos, pedir, svg, ICONOS, iconoCanal,
-    ESTADOS, chipEstado, info, iniciarAyudas, iniciarTema, pref, esqueleto,
+    ESTADOS, chipEstado, info, iniciarAyudas, iniciarTema, pref, coloresEstado, esqueleto,
   };
 })(window.FAC);

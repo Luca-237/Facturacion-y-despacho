@@ -153,22 +153,48 @@
     marcarActiva(false);
   }
 
-  // Leyenda de colores: un botón por estado (clic = mostrar solo ese estado; otro clic = volver a "Abiertos")
+  // Leyenda de colores: un chip por estado.
+  //  - Cuadradito de color: abre el selector y cambia el color de ese estado (se guarda en este navegador, por tema).
+  //  - Nombre: muestra solo ese estado; otro clic vuelve a "Abiertos".
   function pintarLeyenda() {
     const actual = $("pl-estado").value;
+    const colores = R.util.coloresEstado;
     $("pl-leyenda").innerHTML = `<span class="leyenda-titulo">Colores:</span>` +
       Object.entries(R.util.ESTADOS).map(([k, t]) =>
-        `<button type="button" class="ley est-${esc(k)}" data-estado="${esc(k)}" aria-pressed="${actual === k}" title="${actual === k ? "Volver a ver los abiertos" : "Mostrar solo: " + esc(t)}">${esc(t)}</button>`).join("") +
-      `<span class="ley leyenda-revisar" title="Cliente en rojo: el pedido tiene algo anotado para revisar (se ve en la ficha)">A revisar</span>`;
+        `<span class="ley est-${esc(k)}${actual === k ? " activa" : ""}">` +
+          `<label class="ley-color" title="Cambiar el color de «${esc(t)}»"><input type="color" data-color-estado="${esc(k)}" value="${colores.actual(k)}" aria-label="Color de ${esc(t)}"></label>` +
+          `<button type="button" class="ley-filtro" data-estado="${esc(k)}" aria-pressed="${actual === k}" title="${actual === k ? "Volver a ver los abiertos" : "Mostrar solo: " + esc(t)}">${esc(t)}</button>` +
+        `</span>`).join("") +
+      `<span class="ley leyenda-revisar" title="Cliente en rojo: el pedido tiene algo anotado para revisar (se ve en la ficha)">A revisar</span>` +
+      (colores.personalizados() ? `<button type="button" class="ley-restablecer" data-restablecer-colores title="Volver a los colores de fábrica (solo en este tema)">Colores originales</button>` : "");
   }
   function iniciarLeyenda() {
-    $("pl-leyenda").addEventListener("click", e => {
+    const leyenda = $("pl-leyenda");
+    leyenda.addEventListener("click", e => {
+      if (e.target.closest("[data-restablecer-colores]")) {
+        R.util.coloresEstado.restablecer();
+        pintarLeyenda();
+        return;
+      }
       const b = e.target.closest("button[data-estado]");
       if (!b) return;
       const sel = $("pl-estado");
       sel.value = sel.value === b.dataset.estado ? "abiertos" : b.dataset.estado;
       sel.dispatchEvent(new Event("change"));
     });
+    // Mientras se elige, se prueba en vivo; al cerrar el selector, se guarda
+    leyenda.addEventListener("input", e => {
+      const i = e.target.closest("input[data-color-estado]");
+      if (i) R.util.coloresEstado.cambiar(i.dataset.colorEstado, i.value, false);
+    });
+    leyenda.addEventListener("change", e => {
+      const i = e.target.closest("input[data-color-estado]");
+      if (!i) return;
+      R.util.coloresEstado.cambiar(i.dataset.colorEstado, i.value);
+      pintarLeyenda();
+    });
+    // Cada tema tiene su paleta: al cambiar de tema, la leyenda muestra los colores del nuevo
+    document.addEventListener("fac-tema", pintarLeyenda);
   }
 
   function pintarResumen() {
