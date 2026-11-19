@@ -153,6 +153,24 @@
     marcarActiva(false);
   }
 
+  // Leyenda de colores: un botón por estado (clic = mostrar solo ese estado; otro clic = volver a "Abiertos")
+  function pintarLeyenda() {
+    const actual = $("pl-estado").value;
+    $("pl-leyenda").innerHTML = `<span class="leyenda-titulo">Colores:</span>` +
+      Object.entries(R.util.ESTADOS).map(([k, t]) =>
+        `<button type="button" class="ley est-${esc(k)}" data-estado="${esc(k)}" aria-pressed="${actual === k}" title="${actual === k ? "Volver a ver los abiertos" : "Mostrar solo: " + esc(t)}">${esc(t)}</button>`).join("") +
+      `<span class="ley leyenda-revisar" title="Cliente en rojo: el pedido tiene algo anotado para revisar (se ve en la ficha)">A revisar</span>`;
+  }
+  function iniciarLeyenda() {
+    $("pl-leyenda").addEventListener("click", e => {
+      const b = e.target.closest("button[data-estado]");
+      if (!b) return;
+      const sel = $("pl-estado");
+      sel.value = sel.value === b.dataset.estado ? "abiertos" : b.dataset.estado;
+      sel.dispatchEvent(new Event("change"));
+    });
+  }
+
   function pintarResumen() {
     const reales = filas.filter(p => p.id !== "nuevo").map(p => R.datos.porId(p.id) || p);
     const total = reales.reduce((s, p) => s + (p.total || 0), 0);
@@ -692,12 +710,15 @@
     pintarCabecera();
     iniciarRedimension();
     iniciarPanelColumnas();
+    iniciarLeyenda();
     $("pl-exportar").innerHTML = ICONOS.descarga + "Exportar a Excel";
     $("pl-nuevo").innerHTML = ICONOS.mas + "Nuevo pedido";
     $("pl-wrap").tabIndex = 0;
     $("pl-estado").value = pref.leer("pl-estado", "abiertos");
+    pintarLeyenda();
     const alFiltrar = () => {
       limite = LOTE; pref.guardar("pl-estado", $("pl-estado").value);
+      pintarLeyenda();
       filtrar();
       const visibles = new Set(filas.map(p => p.id));
       [...seleccion].forEach(id => { if (!visibles.has(id)) seleccion.delete(id); });
