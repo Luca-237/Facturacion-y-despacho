@@ -51,7 +51,7 @@
 .bandeja > .hint { margin:6px 0 10px; }
 details.bandeja summary { cursor:pointer; list-style:none; }
 details.bandeja summary::-webkit-details-marker { display:none; }
-details.bandeja summary h2::after { content:""; margin-left:auto; width:8px; height:8px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(45deg); transition:transform var(--t) var(--ease); }
+details.bandeja summary h2::after { content:""; flex:none; background:none; margin-left:auto; width:8px; height:8px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(45deg); transition:transform var(--t) var(--ease); }
 details.bandeja[open] summary h2::after { transform:rotate(225deg); }
 details.bandeja[open] summary { margin-bottom:6px; }
 .tareas { list-style:none; margin:0; padding:0; }
